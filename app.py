@@ -1,344 +1,212 @@
-# TradeSim - 初心者向け株価分析アプリ
-
-# 完全版 app.py
-
 import streamlit as st
-import yfinance as yf
 import pandas as pd
 import numpy as np
+import yfinance as yf
+from datetime import datetime, timedelta
 import plotly.graph_objects as go
-import plotly.express as px
 from plotly.subplots import make_subplots
 import ta
-from datetime import datetime, timedelta
+from scipy import stats
 import requests
-import re
-from typing import List, Dict
-import time
-import warnings
-warnings.filterwarnings(‘ignore’)
+import logging
 
-# =============================================================================
+# カスタムモジュールのインポート
 
-# ページ設定
+try:
+from config import Config
+from utils import (
+fetch_stock_data_robust,
+validate_backtest_parameters,
+format_currency,
+calculate_statistics,
+sanitize_stock_symbol
+)
+except ImportError:
+# フォールバック設定（モジュールがない場合）
+class Config:
+TECHNICAL_INDICATORS = {‘RSI_PERIOD’: 14, ‘BB_PERIOD’: 20, ‘MA_SHORT’: 20, ‘MA_LONG’: 50}
+SIGNAL_THRESHOLDS = {‘BUY_THRESHOLD’: 2.5, ‘SELL_THRESHOLD’: 2.5, ‘RSI_OVERSOLD’: 35, ‘RSI_OVERBOUGHT’: 65}
+BACKTEST_DEFAULTS = {‘INITIAL_CAPITAL’: 1000000, ‘RISK_PER_TRADE’: 2.0, ‘STOP_LOSS_PCT’: 5.0, ‘TAKE_PROFIT_PCT’: 15.0, ‘TRADE_COST_RATE’: 0.1}
 
-# =============================================================================
+# ログ設定
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(**name**)
+
+# スマホ最適化ページ設定
 
 st.set_page_config(
-page_title=“TradeSim - 株価分析アプリ”,
-page_icon=“📈”,
-layout=“wide”,
-initial_sidebar_state=“expanded”
+page_title=“📱 株価分析アプリ（教育目的）”,
+layout=“centered”,
+initial_sidebar_state=“collapsed”
 )
 
-# CSS設定
+# カスタムCSS（スマホ最適化・視認性大幅改善）
 
 st.markdown(”””
 
 <style>
-    .main > div {
-        padding-top: 2rem;
+    /* 全体的なテキストの視認性向上 */
+    .main-header {
+        text-align: center;
+        padding: 1.2rem 0;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        color: white !important;
+        margin: -1rem -1rem 2rem -1rem;
+        border-radius: 0 0 1rem 1rem;
+        font-weight: bold;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .explanation-box {
-        background: linear-gradient(90deg, #e3f2fd 0%, #f3e5f5 100%);
-        border: 3px solid #2196f3;
-        border-radius: 15px;
-        padding: 20px;
-        margin: 15px 0;
-        color: #000000;
-        font-weight: 500;
-    }
-    .explanation-box strong {
-        color: #1976d2;
-        font-size: 1.1rem;
-    }
-    .tip-box {
-        background: linear-gradient(90deg, #fff3e0 0%, #fce4ec 100%);
-        border: 3px solid #ff9800;
-        border-radius: 12px;
-        padding: 15px;
-        margin: 10px 0;
-        color: #000000;
-    }
-    .stButton > button {
-        width: 100%;
-        font-size: 1.2rem;
-        padding: 0.75rem;
-        border-radius: 10px;
-        transition: all 0.3s ease;
-    }
+    
     .metric-card {
-        background: white;
-        padding: 15px;
-        border-radius: 10px;
-        border: 2px solid #e0e0e0;
-        margin: 5px 0;
+        background: #ffffff !important;
+        padding: 1.2rem;
+        border-radius: 0.8rem;
+        margin: 0.8rem 0;
+        border: 2px solid #667eea !important;
+        color: #000000 !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    .success-alert {
-        background: #d4edda;
-        border: 1px solid #c3e6cb;
-        color: #155724;
-        padding: 10px;
-        border-radius: 5px;
-        margin: 10px 0;
+    
+    /* 警告ボックスの強化 */
+    .legal-warning {
+        background: #fff3cd !important;
+        border: 3px solid #ffc107 !important;
+        padding: 1.5rem !important;
+        border-radius: 1rem !important;
+        margin: 1.5rem 0 !important;
+        color: #000000 !important;
+        font-weight: 700 !important;
+        font-size: 1.1rem !important;
+        line-height: 1.6 !important;
+        box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3) !important;
     }
-    .warning-alert {
-        background: #fff3cd;
-        border: 1px solid #ffeaa7;
-        color: #856404;
-        padding: 10px;
-        border-radius: 5px;
-        margin: 10px 0;
+    
+    /* 解説ボックスの大幅改善 */
+    .explanation-box {
+        background: #ffffff !important;
+        border: 3px solid #2196F3 !important;
+        padding: 1.2rem !important;
+        border-radius: 1rem !important;
+        margin: 1rem 0 !important;
+        color: #000000 !important;
+        font-weight: 600 !important;
+        font-size: 1.05rem !important;
+        line-height: 1.6 !important;
+        box-shadow: 0 4px 12px rgba(33, 150, 243, 0.15) !important;
     }
-    @media (max-width: 768px) {
-        .stButton > button {
-            font-size: 1rem;
-            padding: 0.5rem;
-        }
-        .explanation-box {
-            padding: 15px;
-            font-size: 0.9rem;
-        }
+    
+    .explanation-box strong {
+        color: #1565C0 !important;
+        font-weight: 700 !important;
+        font-size: 1.1rem !important;
+    }
+    
+    .explanation-box span {
+        color: #000000 !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Tipボックスの大幅改善 */
+    .tip-box {
+        background: #fff8e1 !important;
+        border: 3px solid #ff9800 !important;
+        padding: 1.2rem !important;
+        border-radius: 1rem !important;
+        margin: 1rem 0 !important;
+        color: #000000 !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        line-height: 1.6 !important;
+        box-shadow: 0 4px 12px rgba(255, 152, 0, 0.15) !important;
+    }
+    
+    .tip-box strong {
+        color: #e65100 !important;
+        font-weight: 700 !important;
+        font-size: 1.05rem !important;
+    }
+    
+    .tip-box span {
+        color: #000000 !important;
+        font-weight: 500 !important;
+    }
+    
+    /* すべてのテキストを強制的に黒色に */
+    .explanation-box *, .tip-box *, .legal-warning * {
+        color: #000000 !important;
+    }
+    
+    .big-button {
+        width: 100%;
+        padding: 1.2rem;
+        font-size: 1.3rem;
+        margin: 1rem 0;
+        font-weight: bold;
+        border-radius: 0.8rem;
     }
 </style>
 
 “””, unsafe_allow_html=True)
 
-# =============================================================================
+# — 重要な免責事項（最上部に配置） —
 
-# 強化された日本企業検索システム
+st.markdown(”””
 
-# =============================================================================
+<div class="legal-warning">
+⚠️ <strong>重要な免責事項・法的注意事項</strong><br><br>
+• <strong>これは投資助言ではありません</strong> - 本アプリは教育・学習目的のみです<br>
+• <strong>投資判断は自己責任</strong> - 実際の投資は専門家にご相談ください<br>
+• <strong>過去の成績は将来を保証しない</strong> - シミュレーション結果は参考情報です<br>
+• <strong>データの正確性は保証されません</strong> - 投資前には公式情報をご確認ください<br>
+• <strong>未成年の方へ</strong> - 実際の投資は保護者・大人と必ずご相談ください
+</div>
+""", unsafe_allow_html=True)
 
-class EnhancedJapanStockSearch:
-“”“日本企業検索強化版”””
+# — ヘッダー —
 
-```
-def __init__(self):
-    self.core_jp_stocks = {
-        "トヨタ": "7203.T", "ソニー": "6758.T", "任天堂": "7974.T",
-        "ソフトバンク": "9984.T", "楽天": "4755.T", "ユニクロ": "9983.T",
-        "みずほ": "8411.T", "三菱ufj": "8306.T", "三井住友": "8316.T",
-        "kddi": "9433.T", "ntt": "9432.T", "武田薬品": "4502.T",
-        "キーエンス": "6861.T", "信越化学": "4063.T", "東京エレクトロン": "8035.T",
-        "パナソニック": "6752.T", "日立": "6501.T", "セブン": "3382.T",
-        "イオン": "8267.T", "ファナック": "6954.T", "村田製作所": "6981.T"
-    }
-    
-    self.sector_patterns = {
-        "銀行": {
-            "codes": ["8306", "8316", "8411", "8355", "8377"],
-            "keywords": ["銀行", "bank", "金融"]
-        },
-        "自動車": {
-            "codes": ["7203", "7267", "7201", "7261", "7269"],
-            "keywords": ["自動車", "車", "automotive", "motor"]
-        },
-        "通信": {
-            "codes": ["9432", "9433", "9984", "4751"],
-            "keywords": ["通信", "telecom", "携帯", "mobile"]
-        },
-        "ゲーム": {
-            "codes": ["7974", "9684", "3659", "4751"],
-            "keywords": ["ゲーム", "game", "エンタメ"]
-        },
-        "小売": {
-            "codes": ["3382", "8267", "9983", "2702"],
-            "keywords": ["小売", "retail", "店", "ショップ"]
-        }
-    }
+st.markdown(”””
 
-def enhanced_search(self, keyword: str) -> List[Dict]:
-    if not keyword or not keyword.strip():
-        return []
-        
-    results = []
-    keyword = keyword.strip()
-    
-    # 基本辞書検索
-    basic_results = self._search_core_dict(keyword)
-    results.extend(basic_results)
-    
-    # 動的検索
-    if len(results) < 3:
-        dynamic_results = self._dynamic_jp_search(keyword)
-        results.extend(dynamic_results)
-    
-    # 業界検索
-    if len(results) < 5:
-        sector_results = self._sector_based_search(keyword)
-        results.extend(sector_results)
-    
-    return self._clean_and_rank_results(results)
+<div class="main-header">
+    <h1>📱 株価分析アプリ</h1>
+    <p>🎓 投資学習・教育目的ツール</p>
+    <p style="font-size: 0.9rem;">※ これは投資助言ではありません</p>
+</div>
+""", unsafe_allow_html=True)
 
-def _search_core_dict(self, keyword: str) -> List[Dict]:
-    keyword_lower = keyword.lower()
-    results = []
-    
-    if keyword_lower in self.core_jp_stocks:
-        symbol = self.core_jp_stocks[keyword_lower]
-        results.append({
-            'symbol': symbol,
-            'name': keyword,
-            'match_type': '✅ 確実一致',
-            'confidence': 1.0,
-            'source': 'core'
-        })
-    
-    for name, symbol in self.core_jp_stocks.items():
-        if (keyword_lower in name.lower() or name.lower() in keyword_lower) and keyword_lower != name.lower():
-            confidence = min(len(keyword_lower) / len(name), 0.8)
-            results.append({
-                'symbol': symbol,
-                'name': name,
-                'match_type': '📝 部分一致',
-                'confidence': confidence,
-                'source': 'core'
-            })
-    
-    return results
+# — 初心者向けガイド —
 
-def _dynamic_jp_search(self, keyword: str) -> List[Dict]:
-    results = []
-    
-    if keyword.isdigit():
-        code_patterns = [f"{keyword}.T", f"{int(keyword):04d}.T"]
-        for pattern in code_patterns:
-            result = self._test_japanese_stock(pattern, keyword)
-            if result:
-                results.append(result)
-                break
-    else:
-        test_ranges = self._generate_test_codes(keyword)
-        for code in test_ranges[:5]:
-            symbol = f"{code}.T"
-            result = self._test_japanese_stock(symbol, keyword)
-            if result:
-                results.append(result)
-    
-    return results
-
-def _generate_test_codes(self, keyword: str) -> List[str]:
-    likely_codes = []
-    for sector, info in self.sector_patterns.items():
-        if any(kw in keyword.lower() for kw in info["keywords"]):
-            likely_codes.extend(info["codes"])
-    
-    if not likely_codes:
-        likely_codes = ["7203", "6758", "9984", "4755", "8306"]
-    
-    return likely_codes
-
-def _sector_based_search(self, keyword: str) -> List[Dict]:
-    results = []
-    for sector, info in self.sector_patterns.items():
-        if any(kw in keyword.lower() for kw in info["keywords"]):
-            for code in info["codes"][:3]:
-                symbol = f"{code}.T"
-                result = self._test_japanese_stock(symbol, f"{sector}企業")
-                if result:
-                    result['match_type'] = f'🏢 {sector}業界'
-                    result['confidence'] = 0.6
-                    results.append(result)
-    return results
-
-def _test_japanese_stock(self, symbol: str, original_keyword: str) -> Dict:
-    try:
-        ticker = yf.Ticker(symbol)
-        info = ticker.info
-        
-        if (info and info.get('symbol') and info.get('longName') and self._is_japanese_stock(info)):
-            return {
-                'symbol': symbol,
-                'name': info.get('longName', info.get('shortName', original_keyword)),
-                'match_type': '🎌 動的検索',
-                'confidence': 0.7,
-                'source': 'dynamic'
-            }
-    except Exception:
-        pass
-    return None
-
-def _is_japanese_stock(self, info: dict) -> bool:
-    currency = info.get('currency', '')
-    country = info.get('country', '')
-    exchange = info.get('exchange', '')
-    return (currency == 'JPY' or country == 'Japan' or 'TSE' in str(exchange))
-
-def _clean_and_rank_results(self, results: List[Dict]) -> List[Dict]:
-    seen_symbols = set()
-    unique_results = []
-    sorted_results = sorted(results, key=lambda x: x['confidence'], reverse=True)
-    
-    for result in sorted_results:
-        symbol = result['symbol']
-        if symbol not in seen_symbols:
-            seen_symbols.add(symbol)
-            unique_results.append(result)
-    
-    return unique_results[:6]
-```
-
-# =============================================================================
-
-# ユーザー学習システム
-
-# =============================================================================
-
-class UserLearningSystem:
-@staticmethod
-def add_user_choice(keyword: str, symbol: str, name: str):
-if ‘user_stock_choices’ not in st.session_state:
-st.session_state.user_stock_choices = {}
+with st.expander(“🔰 このアプリって何？（初心者必読！）”, expanded=False):
+st.markdown(”””
+### 📚 このアプリでできること
 
 ```
-    key = keyword.lower().strip()
-    st.session_state.user_stock_choices[key] = {
-        'symbol': symbol,
-        'name': name,
-        'count': st.session_state.user_stock_choices.get(key, {}).get('count', 0) + 1,
-        'last_used': datetime.now()
-    }
+**株って何？**  
+株は「会社の一部を買うこと」です。例えば、トヨタの株を買うと、トヨタの会社の小さな持ち主になれます！
 
-@staticmethod
-def get_user_suggestions(keyword: str) -> List[Dict]:
-    if 'user_stock_choices' not in st.session_state:
-        return []
-    
-    keyword_lower = keyword.lower().strip()
-    results = []
-    
-    if keyword_lower in st.session_state.user_stock_choices:
-        data = st.session_state.user_stock_choices[keyword_lower]
-        results.append({
-            'symbol': data['symbol'],
-            'name': data['name'],
-            'match_type': '📚 学習済み',
-            'confidence': 0.95,
-            'source': 'user'
-        })
-    
-    for stored_key, data in st.session_state.user_stock_choices.items():
-        if (keyword_lower in stored_key or stored_key in keyword_lower) and keyword_lower != stored_key:
-            confidence = 0.8 * min(data['count'] / 5, 1.0)
-            results.append({
-                'symbol': data['symbol'],
-                'name': data['name'],
-                'match_type': '📖 履歴',
-                'confidence': confidence,
-                'source': 'user'
-            })
-    
-    return sorted(results, key=lambda x: x['confidence'], reverse=True)[:3]
+**このアプリの使い方**
+1. 📈 **会社を選ぶ** → 気になる会社の株価を調べる
+2. 🔍 **分析する** → その会社の株価が上がりそうか下がりそかを学習する  
+3. 💡 **サインを見る** → コンピューターが「買いサイン」「売りサイン」「中立」を表示
+4. 💼 **ポートフォリオ** → 気になる会社をリストに保存できる
+
+**⚠️ 絶対に覚えておくこと**
+- これは勉強用のアプリです
+- 実際にお金を使う時は、大人と相談しましょう
+- コンピューターの分析は100%正しくありません
+- 株価は上がったり下がったりするのが普通です
+- 過去の結果と将来の結果は全く別です
+""")
 ```
 
-# =============================================================================
+# — Streamlit セッション状態の初期化 —
 
-# 既存の検索システム
+if ‘portfolio’ not in st.session_state:
+st.session_state.portfolio = {}
 
-# =============================================================================
+# — 銘柄検索機能 —
 
-class SuperStockSearch:
+class LocalStockSearch:
 def **init**(self):
 self.stock_dict = {
 # 日本の主要銘柄
@@ -350,11 +218,22 @@ self.stock_dict = {
 “ソフトバンク”: “9984.T”, “softbank”: “9984.T”,
 “楽天”: “4755.T”, “rakuten”: “4755.T”,
 “ユニクロ”: “9983.T”, “ファーストリテイリング”: “9983.T”,
+“キーエンス”: “6861.T”, “keyence”: “6861.T”,
+“信越化学”: “4063.T”,
+“東京エレクトロン”: “8035.T”,
+“パナソニック”: “6752.T”, “panasonic”: “6752.T”,
+“日立”: “6501.T”, “hitachi”: “6501.T”, “日立製作所”: “6501.T”,
+“三菱ufj”: “8306.T”, “三菱UFJ銀行”: “8306.T”,
+“kddi”: “9433.T”,
+“ntt”: “9432.T”, “日本電信電話”: “9432.T”,
+“武田薬品”: “4502.T”, “takeda”: “4502.T”,
+“セブン”: “3382.T”, “セブンイレブン”: “3382.T”,
+“イオン”: “8267.T”, “aeon”: “8267.T”,
 
 ```
         # 米国の主要銘柄
         "apple": "AAPL", "アップル": "AAPL", "iphone": "AAPL",
-        "microsoft": "MSFT", "マイクロソフト": "MSFT",
+        "microsoft": "MSFT", "マイクロソフト": "MSFT", "windows": "MSFT",
         "google": "GOOGL", "グーグル": "GOOGL", "alphabet": "GOOGL",
         "amazon": "AMZN", "アマゾン": "AMZN",
         "tesla": "TSLA", "テスラ": "TSLA",
@@ -363,159 +242,45 @@ self.stock_dict = {
         "netflix": "NFLX", "ネットフリックス": "NFLX",
         "disney": "DIS", "ディズニー": "DIS",
         "nike": "NKE", "ナイキ": "NKE",
+        "mcdonald": "MCD", "マクドナルド": "MCD",
+        "coca cola": "KO", "コカコーラ": "KO",
+        "visa": "V", "ビザ": "V",
+        "boeing": "BA", "ボーイング": "BA",
+        "walmart": "WMT", "ウォルマート": "WMT",
     }
 
-def search(self, keyword: str) -> List[Dict]:
-    keyword = keyword.strip()
-    if not keyword:
-        return []
+def search(self, keyword):
+    """キーワードから銘柄コードを検索"""
+    try:
+        keyword_lower = keyword.lower().strip()
+        results = []
         
-    results = []
-    basic_results = self._search_basic_dict(keyword)
-    results.extend(basic_results)
-    
-    yf_results = self._search_yfinance_direct(keyword)
-    results.extend(yf_results)
-    
-    partial_results = self._search_partial_match(keyword)
-    results.extend(partial_results)
-    
-    return self._remove_duplicates(results)
-
-def _search_basic_dict(self, keyword: str) -> List[Dict]:
-    keyword_lower = keyword.lower()
-    results = []
-    
-    if keyword_lower in self.stock_dict:
-        symbol = self.stock_dict[keyword_lower]
-        results.append({
-            'symbol': symbol,
-            'name': keyword,
-            'match_type': '✅ 完全一致',
-            'confidence': 1.0
-        })
-    
-    return results
-
-def _search_yfinance_direct(self, keyword: str) -> List[Dict]:
-    results = []
-    test_symbols = [keyword.upper(), f"{keyword.upper()}.T"]
-    
-    if keyword.isdigit():
-        test_symbols.extend([f"{keyword}.T"])
-    
-    for symbol in test_symbols:
-        try:
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
-            
-            if (info and info.get('symbol') and info.get('longName')):
-                results.append({
-                    'symbol': symbol,
-                    'name': info.get('longName', symbol),
-                    'match_type': '🎯 直接検索',
-                    'confidence': 0.85,
-                })
-                break
-        except Exception:
-            continue
-    
-    return results
-
-def _search_partial_match(self, keyword: str) -> List[Dict]:
-    keyword_lower = keyword.lower()
-    results = []
-    
-    for name, symbol in self.stock_dict.items():
-        if (keyword_lower in name.lower() or name.lower() in keyword_lower) and keyword_lower != name.lower():
-            confidence = min(len(keyword_lower) / len(name), 0.7)
+        # 完全一致
+        if keyword_lower in self.stock_dict:
+            symbol = self.stock_dict[keyword_lower]
             results.append({
                 'symbol': symbol,
-                'name': name,
-                'match_type': '📝 部分一致',
-                'confidence': confidence
+                'name': keyword,
+                'match_type': '完全一致'
             })
-    
-    return sorted(results, key=lambda x: x['confidence'], reverse=True)
-
-def _remove_duplicates(self, results: List[Dict]) -> List[Dict]:
-    seen_symbols = set()
-    unique_results = []
-    sorted_results = sorted(results, key=lambda x: x['confidence'], reverse=True)
-    
-    for result in sorted_results:
-        symbol = result['symbol']
-        if symbol not in seen_symbols:
-            seen_symbols.add(symbol)
-            unique_results.append(result)
-            
-    return unique_results[:8]
+        
+        # 部分一致
+        for name, symbol in self.stock_dict.items():
+            if keyword_lower in name.lower() and keyword_lower != name.lower():
+                results.append({
+                    'symbol': symbol,
+                    'name': name,
+                    'match_type': '部分一致'
+                })
+        
+        return results[:5]  # 上位5件
+    except Exception as e:
+        logger.error(f"検索エラー: {e}")
+        return []
 ```
 
-# =============================================================================
-
-# 統合検索機能
-
-# =============================================================================
-
-def integrated_stock_search(keyword: str, api_key: str = None) -> List[Dict]:
-if not keyword or not keyword.strip():
-return []
-
-```
-all_results = []
-
-# ユーザー学習結果
-user_results = UserLearningSystem.get_user_suggestions(keyword)
-all_results.extend(user_results)
-
-# 既存検索
-if 'searcher' not in st.session_state:
-    st.session_state.searcher = SuperStockSearch()
-
-super_results = st.session_state.searcher.search(keyword)
-all_results.extend(super_results)
-
-# 強化された日本企業検索
-if len(all_results) < 4:
-    if 'jp_searcher' not in st.session_state:
-        st.session_state.jp_searcher = EnhancedJapanStockSearch()
-    
-    enhanced_results = st.session_state.jp_searcher.enhanced_search(keyword)
-    all_results.extend(enhanced_results)
-
-# Alpha Vantage API
-if api_key and len(all_results) < 6:
-    api_results = search_alpha_vantage_enhanced(keyword, api_key)
-    all_results.extend(api_results)
-
-return remove_duplicates_final(all_results)
-```
-
-def remove_duplicates_final(results: List[Dict]) -> List[Dict]:
-seen_symbols = set()
-unique_results = []
-source_priority = {‘user’: 3, ‘core’: 2, ‘dynamic’: 1, ‘api’: 0}
-
-```
-def sort_key(result):
-    source = result.get('source', 'unknown')
-    priority = source_priority.get(source, 0)
-    confidence = result.get('confidence', 0)
-    return (priority, confidence)
-
-sorted_results = sorted(results, key=sort_key, reverse=True)
-
-for result in sorted_results:
-    symbol = result['symbol']
-    if symbol not in seen_symbols:
-        seen_symbols.add(symbol)
-        unique_results.append(result)
-
-return unique_results[:8]
-```
-
-def search_alpha_vantage_enhanced(keyword, api_key):
+def search_alpha_vantage(keyword, api_key):
+“”“Alpha Vantage APIで銘柄検索（エラーハンドリング強化）”””
 if not api_key:
 return []
 
@@ -528,1128 +293,1282 @@ try:
         'apikey': api_key
     }
     
-    response = requests.get(url, params=params, timeout=8)
-    if response.status_code == 200:
-        data = response.json()
+    response = requests.get(url, params=params, timeout=10)
+    response.raise_for_status()
+    data = response.json()
+    
+    if 'bestMatches' in data:
         results = []
-        if 'bestMatches' in data:
-            for match in data['bestMatches']:
-                symbol = match.get('1. symbol', '')
-                name = match.get('2. name', '')
-                match_score = float(match.get('9. matchScore', '0'))
-                
-                if symbol and name and match_score > 0.3:
-                    results.append({
-                        'symbol': symbol,
-                        'name': name,
-                        'match_type': '🌐 API検索',
-                        'confidence': min(match_score, 0.8),
-                        'source': 'api'
-                    })
-        
-        return sorted(results, key=lambda x: x['confidence'], reverse=True)[:5]
-    
-except Exception as e:
-    st.warning(f"API検索でエラーが発生しました: {e}")
-
-return []
-```
-
-# =============================================================================
-
-# データ取得・分析機能
-
-# =============================================================================
-
-@st.cache_data
-def fetch_stock_data(symbol, start_date, end_date):
-“”“株価データの取得”””
-try:
-ticker = yf.Ticker(symbol)
-data = ticker.history(start=start_date, end=end_date)
-
-```
-    if data.empty:
-        return None, None
-    
-    info = ticker.info
-    return data, info
-except Exception as e:
-    st.error(f"データ取得エラー: {e}")
-    return None, None
-```
-
-def calculate_indicators(data):
-“”“テクニカル指標の計算”””
-if data is None or len(data) < 50:
-return None
-
-```
-df = data.copy()
-
-# 移動平均線
-df['MA20'] = ta.trend.sma_indicator(df['Close'], window=20)
-df['MA50'] = ta.trend.sma_indicator(df['Close'], window=50)
-
-# RSI
-df['RSI'] = ta.momentum.rsi(df['Close'], window=14)
-
-# ボリンジャーバンド
-bb_indicator = ta.volatility.BollingerBands(df['Close'], window=20, window_dev=2)
-df['BB_upper'] = bb_indicator.bollinger_hband()
-df['BB_middle'] = bb_indicator.bollinger_mavg()
-df['BB_lower'] = bb_indicator.bollinger_lband()
-
-# MACD
-macd_indicator = ta.trend.MACD(df['Close'])
-df['MACD'] = macd_indicator.macd()
-df['MACD_signal'] = macd_indicator.macd_signal()
-df['MACD_histogram'] = macd_indicator.macd_diff()
-
-# 出来高移動平均
-df['Volume_MA'] = ta.trend.sma_indicator(df['Volume'], window=20)
-
-return df
-```
-
-def generate_signals_advanced(df):
-“”“高度な売買シグナル生成”””
-if df is None or len(df) < 50:
-return “データ不足”, 0, []
-
-```
-latest = df.iloc[-1]
-signals = []
-buy_score = 0
-sell_score = 0
-
-# 移動平均線シグナル
-if latest['MA20'] > latest['MA50']:
-    buy_score += 1
-    signals.append("✅ 短期移動平均が長期移動平均を上回っています（上昇トレンド）")
-else:
-    sell_score += 1
-    signals.append("❌ 短期移動平均が長期移動平均を下回っています（下降トレンド）")
-
-# RSIシグナル
-rsi = latest['RSI']
-if rsi < 35:
-    buy_score += 1
-    signals.append(f"✅ RSI({rsi:.1f})が売られすぎ水準です（買いシグナル）")
-elif rsi > 65:
-    sell_score += 1
-    signals.append(f"❌ RSI({rsi:.1f})が買われすぎ水準です（売りシグナル）")
-else:
-    signals.append(f"➖ RSI({rsi:.1f})は中立的です")
-
-# ボリンジャーバンドシグナル
-price = latest['Close']
-bb_upper = latest['BB_upper']
-bb_lower = latest['BB_lower']
-
-if price < bb_lower:
-    buy_score += 1.5
-    signals.append("✅ 価格がボリンジャーバンド下限を下回っています（割安）")
-elif price > bb_upper:
-    sell_score += 1.5
-    signals.append("❌ 価格がボリンジャーバンド上限を上回っています（割高）")
-else:
-    signals.append("➖ 価格はボリンジャーバンド内で推移しています")
-
-# MACDシグナル
-macd_current = latest['MACD']
-macd_signal_current = latest['MACD_signal']
-
-if len(df) >= 2:
-    macd_prev = df.iloc[-2]['MACD']
-    signal_prev = df.iloc[-2]['MACD_signal']
-    
-    if macd_prev <= signal_prev and macd_current > macd_signal_current:
-        buy_score += 1.5
-        signals.append("✅ MACDがシグナル線を上抜けました（ゴールデンクロス）")
-    elif macd_prev >= signal_prev and macd_current < macd_signal_current:
-        sell_score += 1.5
-        signals.append("❌ MACDがシグナル線を下抜けました（デッドクロス）")
-    else:
-        signals.append("➖ MACD は変化なしです")
-
-# 出来高シグナル
-volume_ratio = latest['Volume'] / latest['Volume_MA'] if latest['Volume_MA'] > 0 else 1
-if volume_ratio > 1.5:
-    buy_score += 0.5
-    signals.append(f"✅ 出来高が平均の{volume_ratio:.1f}倍で活発です")
-else:
-    signals.append("➖ 出来高は通常レベルです")
-
-# 総合判定
-total_score = buy_score - sell_score
-
-if total_score >= 2.5:
-    judgment = "🟢 買い推奨"
-    score = min(total_score / 5 * 100, 100)
-elif total_score <= -2.5:
-    judgment = "🔴 売り推奨"
-    score = max(-total_score / 5 * 100, -100)
-else:
-    judgment = "🟡 中立・様子見"
-    score = total_score / 5 * 100
-
-return judgment, score, signals
-```
-
-def backtest_realistic(df, initial_capital=1000000, risk_pct=2.0, stop_loss_pct=5.0, take_profit_pct=15.0, cost_rate=0.001):
-“”“リアリスティックなバックテスト”””
-if df is None or len(df) < 100:
-return None
-
-```
-results = {
-    'dates': [],
-    'portfolio_value': [],
-    'positions': [],
-    'trades': [],
-    'returns': []
-}
-
-capital = initial_capital
-position = 0
-entry_price = 0
-stop_loss_price = 0
-take_profit_price = 0
-
-for i in range(50, len(df)):
-    current_data = df.iloc[:i+1]
-    current_price = current_data.iloc[-1]['Close']
-    current_date = current_data.index[-1]
-    
-    # シグナル生成
-    judgment, score, _ = generate_signals_advanced(current_data)
-    
-    # ポジションがない場合の買いシグナル
-    if position == 0 and "買い推奨" in judgment and score > 50:
-        # リスクベースのポジションサイジング
-        risk_amount = capital * (risk_pct / 100)
-        potential_loss_per_share = current_price * (stop_loss_pct / 100)
-        
-        if potential_loss_per_share > 0:
-            position_size = risk_amount / potential_loss_per_share
-            position_cost = position_size * current_price * (1 + cost_rate)
-            
-            if position_cost <= capital:
-                position = position_size
-                entry_price = current_price
-                stop_loss_price = entry_price * (1 - stop_loss_pct / 100)
-                take_profit_price = entry_price * (1 + take_profit_pct / 100)
-                capital -= position_cost
-                
-                results['trades'].append({
-                    'date': current_date,
-                    'type': 'BUY',
-                    'price': current_price,
-                    'size': position_size,
-                    'reason': 'シグナル買い'
-                })
-    
-    # ポジションがある場合の売りシグナル
-    elif position > 0:
-        sell_reason = None
-        
-        # 損切り
-        if current_price <= stop_loss_price:
-            sell_reason = "損切り"
-        # 利益確定
-        elif current_price >= take_profit_price:
-            sell_reason = "利益確定"
-        # シグナル売り
-        elif "売り推奨" in judgment and score < -30:
-            sell_reason = "シグナル売り"
-        
-        if sell_reason:
-            sell_value = position * current_price * (1 - cost_rate)
-            capital += sell_value
-            
-            results['trades'].append({
-                'date': current_date,
-                'type': 'SELL',
-                'price': current_price,
-                'size': position,
-                'reason': sell_reason
+        for match in data['bestMatches']:
+            results.append({
+                'symbol': match.get('1. symbol', ''),
+                'name': match.get('2. name', ''),
+                'region': match.get('4. region', ''),
+                'match_type': 'API検索'
             })
-            
-            position = 0
-    
-    # ポートフォリオ価値の計算
-    portfolio_value = capital + (position * current_price if position > 0 else 0)
-    
-    results['dates'].append(current_date)
-    results['portfolio_value'].append(portfolio_value)
-    results['positions'].append(position)
-    
-    # リターン計算
-    if len(results['portfolio_value']) > 1:
-        daily_return = (portfolio_value / results['portfolio_value'][-2] - 1) * 100
-        results['returns'].append(daily_return)
-    else:
-        results['returns'].append(0)
-
-return results
+        return results[:5]
+    elif 'Note' in data:
+        st.warning("⚠️ API制限に達しました。少し時間をおいて再試行してください。")
+    elif 'Error Message' in data:
+        st.error(f"❌ API エラー: {data['Error Message']}")
+    return []
+except requests.exceptions.RequestException as e:
+    st.error(f"❌ ネットワークエラー: {e}")
+    return []
+except Exception as e:
+    st.error(f"❌ 予期しないエラー: {e}")
+    return []
 ```
 
-# =============================================================================
+# 検索オブジェクト初期化
 
-# チャート作成機能
+if ‘searcher’ not in st.session_state:
+st.session_state.searcher = LocalStockSearch()
 
-# =============================================================================
+# — メイン設定エリア —
 
-def create_comprehensive_chart(df, info):
-“”“包括的なチャート作成”””
-if df is None:
-return None
+with st.expander(“⚙️ 分析設定（どの会社を調べる？）”, expanded=True):
+st.markdown(”### 📍 会社を選ぼう”)
 
 ```
-# サブプロット作成
-fig = make_subplots(
-    rows=4, cols=1,
-    shared_xaxes=True,
-    vertical_spacing=0.03,
-    subplot_titles=('株価とテクニカル指標', 'RSI', 'MACD', '出来高'),
-    row_heights=[0.5, 0.2, 0.2, 0.1]
+# 検索方法の選択
+search_method = st.radio(
+    "検索方法を選んでね",
+    ["🔍 会社名で検索", "📋 人気の会社から選ぶ", "⌨️ コードを直接入力"],
+    horizontal=True
 )
-
-# 1. 株価チャート
-fig.add_trace(
-    go.Candlestick(
-        x=df.index,
-        open=df['Open'],
-        high=df['High'],
-        low=df['Low'],
-        close=df['Close'],
-        name="株価"
-    ),
-    row=1, col=1
-)
-
-# 移動平均線
-if 'MA20' in df.columns:
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['MA20'], name="MA20", line=dict(color="orange")),
-        row=1, col=1
-    )
-
-if 'MA50' in df.columns:
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['MA50'], name="MA50", line=dict(color="blue")),
-        row=1, col=1
-    )
-
-# ボリンジャーバンド
-if all(col in df.columns for col in ['BB_upper', 'BB_middle', 'BB_lower']):
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['BB_upper'], name="BB上限", line=dict(color="gray", dash="dash")),
-        row=1, col=1
-    )
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['BB_lower'], name="BB下限", line=dict(color="gray", dash="dash"), fill='tonexty'),
-        row=1, col=1
-    )
-
-# 2. RSI
-if 'RSI' in df.columns:
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['RSI'], name="RSI", line=dict(color="purple")),
-        row=2, col=1
-    )
-    fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
-    fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
-
-# 3. MACD
-if all(col in df.columns for col in ['MACD', 'MACD_signal', 'MACD_histogram']):
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['MACD'], name="MACD", line=dict(color="blue")),
-        row=3, col=1
-    )
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['MACD_signal'], name="シグナル", line=dict(color="red")),
-        row=3, col=1
-    )
-    fig.add_trace(
-        go.Bar(x=df.index, y=df['MACD_histogram'], name="ヒストグラム"),
-        row=3, col=1
-    )
-
-# 4. 出来高
-fig.add_trace(
-    go.Bar(x=df.index, y=df['Volume'], name="出来高", marker_color="lightblue"),
-    row=4, col=1
-)
-
-if 'Volume_MA' in df.columns:
-    fig.add_trace(
-        go.Scatter(x=df.index, y=df['Volume_MA'], name="出来高MA", line=dict(color="red")),
-        row=4, col=1
-    )
-
-# レイアウト設定
-company_name = info.get('longName', '銘柄') if info else '銘柄'
-fig.update_layout(
-    title=f"{company_name} - 包括的テクニカル分析",
-    height=800,
-    showlegend=True,
-    xaxis_rangeslider_visible=False
-)
-
-return fig
-```
-
-def create_backtest_chart(backtest_results):
-“”“バックテスト結果のチャート”””
-if not backtest_results:
-return None
-
-```
-fig = go.Figure()
-
-# ポートフォリオ価値の推移
-fig.add_trace(
-    go.Scatter(
-        x=backtest_results['dates'],
-        y=backtest_results['portfolio_value'],
-        mode='lines',
-        name='ポートフォリオ価値',
-        line=dict(color='blue', width=2)
-    )
-)
-
-# 売買ポイントをマーク
-buy_dates = []
-buy_values = []
-sell_dates = []
-sell_values = []
-
-for trade in backtest_results['trades']:
-    if trade['type'] == 'BUY':
-        idx = backtest_results['dates'].index(trade['date'])
-        buy_dates.append(trade['date'])
-        buy_values.append(backtest_results['portfolio_value'][idx])
-    else:
-        idx = backtest_results['dates'].index(trade['date'])
-        sell_dates.append(trade['date'])
-        sell_values.append(backtest_results['portfolio_value'][idx])
-
-if buy_dates:
-    fig.add_trace(
-        go.Scatter(
-            x=buy_dates,
-            y=buy_values,
-            mode='markers',
-            name='買い',
-            marker=dict(color='green', size=10, symbol='triangle-up')
-        )
-    )
-
-if sell_dates:
-    fig.add_trace(
-        go.Scatter(
-            x=sell_dates,
-            y=sell_values,
-            mode='markers',
-            name='売り',
-            marker=dict(color='red', size=10, symbol='triangle-down')
-        )
-    )
-
-fig.update_layout(
-    title="バックテスト結果 - ポートフォリオ価値の推移",
-    xaxis_title="日付",
-    yaxis_title="ポートフォリオ価値 (円)",
-    height=500
-)
-
-return fig
-```
-
-# =============================================================================
-
-# ポートフォリオ管理機能
-
-# =============================================================================
-
-def initialize_portfolio():
-“”“ポートフォリオの初期化”””
-if ‘portfolio’ not in st.session_state:
-st.session_state.portfolio = {}
-
-def add_to_portfolio(symbol, shares, avg_price, long_name):
-“”“ポートフォリオに銘柄を追加”””
-if symbol in st.session_state.portfolio:
-# 既存銘柄の場合、平均単価を計算
-existing = st.session_state.portfolio[symbol]
-total_shares = existing[‘shares’] + shares
-total_cost = (existing[‘shares’] * existing[‘avg_price’]) + (shares * avg_price)
-new_avg_price = total_cost / total_shares
-
-```
-    st.session_state.portfolio[symbol] = {
-        'shares': total_shares,
-        'avg_price': new_avg_price,
-        'longName': long_name
-    }
-else:
-    st.session_state.portfolio[symbol] = {
-        'shares': shares,
-        'avg_price': avg_price,
-        'longName': long_name
-    }
-```
-
-def get_portfolio_performance():
-“”“ポートフォリオのパフォーマンス計算”””
-if not st.session_state.portfolio:
-return None
-
-```
-portfolio_data = []
-total_investment = 0
-total_current_value = 0
-
-for symbol, data in st.session_state.portfolio.items():
-    try:
-        ticker = yf.Ticker(symbol)
-        current_price = ticker.info.get('regularMarketPrice')
-        
-        if current_price:
-            investment = data['shares'] * data['avg_price']
-            current_value = data['shares'] * current_price
-            gain_loss = current_value - investment
-            gain_loss_pct = (gain_loss / investment) * 100
-            
-            portfolio_data.append({
-                'symbol': symbol,
-                'name': data['longName'],
-                'shares': data['shares'],
-                'avg_price': data['avg_price'],
-                'current_price': current_price,
-                'investment': investment,
-                'current_value': current_value,
-                'gain_loss': gain_loss,
-                'gain_loss_pct': gain_loss_pct
-            })
-            
-            total_investment += investment
-            total_current_value += current_value
-    
-    except Exception as e:
-        st.warning(f"{symbol}の価格取得に失敗しました: {e}")
-        continue
-
-if portfolio_data:
-    total_gain_loss = total_current_value - total_investment
-    total_gain_loss_pct = (total_gain_loss / total_investment) * 100 if total_investment > 0 else 0
-    
-    return {
-        'portfolio_data': portfolio_data,
-        'total_investment': total_investment,
-        'total_current_value': total_current_value,
-        'total_gain_loss': total_gain_loss,
-        'total_gain_loss_pct': total_gain_loss_pct
-    }
-
-return None
-```
-
-# =============================================================================
-
-# メインアプリケーション
-
-# =============================================================================
-
-def main():
-# サイドバー
-st.sidebar.title(“📈 TradeSim”)
-st.sidebar.markdown(”**初心者向け株価分析アプリ**”)
-
-```
-# ポートフォリオ初期化
-initialize_portfolio()
-
-# メインページ選択
-page = st.sidebar.selectbox(
-    "📋 機能選択",
-    ["🔍 株価分析", "💼 ポートフォリオ管理", "📚 投資の基礎"]
-)
-
-if page == "🔍 株価分析":
-    stock_analysis_page()
-elif page == "💼 ポートフォリオ管理":
-    portfolio_management_page()
-elif page == "📚 投資の基礎":
-    education_page()
-```
-
-def stock_analysis_page():
-“”“株価分析ページ”””
-st.title(“🔍 株価分析”)
-
-```
-# 銘柄選択方法
-search_method = st.selectbox(
-    "銘柄選択方法",
-    ["🔍 会社名で検索", "⭐ 人気銘柄から選択", "📝 銘柄コード直接入力"]
-)
-
-stock_code = None
 
 if search_method == "🔍 会社名で検索":
     st.markdown("""
     <div class="explanation-box">
-    <strong>🚀 AIパワード企業検索</strong><br>
-    <span>• 学習機能：よく使う銘柄を記憶</span><br>
-    <span>• 動的検索：数千社の日本企業を自動発見</span><br>
-    <span>• 業界検索：「銀行」「自動車」で関連企業を表示</span><br>
-    <span>• 多言語対応：日本語・英語・銘柄コード</span>
+    <strong>🔍 会社名検索</strong><br>
+    <span>知っている会社の名前を入力すると、銘柄コードを自動で見つけてくれます！</span><br>
+    <span>例：「トヨタ」「Apple」「任天堂」「テスラ」など</span>
     </div>
     """, unsafe_allow_html=True)
     
-    # Alpha Vantage API Key
+    # Alpha Vantage API Key（オプション）
     api_key = None
-    with st.expander("🔧 さらに多くの企業を検索（上級者向け）"):
+    with st.expander("🔧 より多くの検索結果を得る（上級者向け）"):
         api_key = st.text_input(
             "Alpha Vantage API Key（省略可）",
             type="password",
-            help="無料で取得可能。世界中の企業を検索できます"
+            help="無料で取得可能。より多くの会社を検索できます"
         )
         st.markdown("""
         <div class="tip-box">
-        💡 <strong>API Keyなしでも十分：</strong> <span>主要企業（数百社）+ 動的検索で数千社対応</span><br>
-        <strong>API Keyがあると：</strong> <span>世界中の企業（数万社）を検索可能</span>
+        💡 <strong>API Keyなしでも大丈夫：</strong> <span>主要な会社は検索できます</span><br>
+        <strong>API Keyがあると：</strong> <span>世界中の会社を検索できます</span><br>
+        <strong>取得方法：</strong> <span>https://www.alphavantage.co/support/#api-key で無料取得</span><br>
+        <strong>⚠️ 注意：</strong> <span>API Keyは安全に管理してください</span>
         </div>
         """, unsafe_allow_html=True)
     
     # 検索入力
     search_keyword = st.text_input(
-        "🔍 企業名・銘柄コード・業界名を入力",
-        placeholder="例: 三菱UFJ, 7203, 銀行, ゲーム, MSFT, テスラ",
-        key="integrated_search_input"
+        "会社名を入力してください",
+        placeholder="例: トヨタ, Apple, 任天堂, Tesla",
+        key="stock_search_input"
     )
     
     if search_keyword:
-        with st.spinner("🤖 AI検索中..."):
-            search_results = integrated_stock_search(search_keyword, api_key)
-        
-        if search_results:
-            st.success(f"🎯 '{search_keyword}' の検索結果: {len(search_results)}件")
+        with st.spinner("🔍 検索中..."):
+            # ローカル検索
+            local_results = st.session_state.searcher.search(search_keyword)
             
-            # 結果表示
+            # API検索（API Keyがある場合）
+            api_results = []
+            if api_key:
+                api_results = search_alpha_vantage(search_keyword, api_key)
+            
+            # 結果をまとめる
+            all_results = local_results + api_results
+            
+            # 重複除去
+            seen_symbols = set()
+            unique_results = []
+            for result in all_results:
+                symbol = result['symbol']
+                if symbol not in seen_symbols:
+                    seen_symbols.add(symbol)
+                    unique_results.append(result)
+        
+        if unique_results:
+            st.markdown(f"**🎯 検索結果: '{search_keyword}'**")
+            
+            # 結果をボタンで表示
             selected_stock = None
-            for result in search_results:
+            for i, result in enumerate(unique_results):
                 symbol = result['symbol']
                 name = result['name']
                 match_type = result['match_type']
-                confidence = result.get('confidence', 0)
-                
-                if confidence > 0.9:
-                    icon = "🎯"
-                elif confidence > 0.7:
-                    icon = "👍"
-                else:
-                    icon = "💡"
+                region = result.get('region', '日本' if symbol.endswith('.T') else '米国')
                 
                 if st.button(
-                    f"{icon} {symbol} - {name}",
-                    key=f"search_result_{symbol}_{hash(name)}",
-                    help=f"{match_type} | 信頼度: {confidence:.2f}",
-                    use_container_width=True
+                    f"📈 {symbol} - {name} ({region})",
+                    key=f"search_result_{i}",
+                    help=f"マッチタイプ: {match_type}"
                 ):
                     selected_stock = symbol
                     st.session_state.selected_stock_name = name
-                    UserLearningSystem.add_user_choice(search_keyword, symbol, name)
                     st.success(f"✅ 選択しました: {symbol} - {name}")
-                    st.balloons()
             
             if selected_stock:
                 stock_code = selected_stock
             else:
-                stock_code = search_results[0]['symbol'] if search_results else "AAPL"
-        
+                stock_code = unique_results[0]['symbol'] if unique_results else "AAPL"
         else:
             st.warning("🔍 検索結果が見つかりませんでした")
+            st.markdown("""
+            **💡 検索のコツ:**
+            - 会社の正式名称で試してみてください
+            - 英語と日本語両方で試してみてください  
+            - 略称でも検索できます
+            """)
             stock_code = "AAPL"
 
-elif search_method == "⭐ 人気銘柄から選択":
+elif search_method == "📋 人気の会社から選ぶ":
     st.markdown("""
     <div class="explanation-box">
-    <strong>⭐ 人気銘柄セレクション</strong><br>
-    <span>投資家に人気の銘柄を厳選しました</span>
+    <strong>📋 人気銘柄から選択</strong><br>
+    <span>よく投資される人気の会社から選べます</span>
     </div>
     """, unsafe_allow_html=True)
     
-    col1, col2 = st.columns(2)
+    popular_stocks = {
+        "🚗 トヨタ自動車（世界最大の自動車メーカー）": "7203.T",
+        "🎮 ソニーグループ（ゲーム・音楽・映画）": "6758.T",
+        "🎯 任天堂（ゲーム会社の王者）": "7974.T",
+        "🍎 Apple（iPhone・Mac作ってる会社）": "AAPL",
+        "🚗 Tesla（電気自動車のパイオニア）": "TSLA",
+        "💻 Microsoft（Windows・Office）": "MSFT",
+        "🎮 NVIDIA（AI・ゲーム用チップ）": "NVDA",
+        "🔍 Google（検索エンジン・YouTube）": "GOOGL",
+        "📦 Amazon（ネットショッピング最大手）": "AMZN",
+        "📱 Meta（Facebook・Instagram）": "META"
+    }
     
-    with col1:
-        st.markdown("**🇯🇵 日本株**")
-        jp_stocks = {
-            "🚗 トヨタ自動車": "7203.T",
-            "🎮 任天堂": "7974.T",
-            "📱 ソニー": "6758.T",
-            "🏪 ユニクロ": "9983.T",
-            "📞 ソフトバンク": "9984.T",
-            "🛒 楽天": "4755.T"
-        }
-        
-        for name, symbol in jp_stocks.items():
-            if st.button(name, key=f"jp_{symbol}", use_container_width=True):
-                stock_code = symbol
-                st.success(f"✅ {name} を選択しました")
-    
-    with col2:
-        st.markdown("**🇺🇸 米国株**")
-        us_stocks = {
-            "🍎 Apple": "AAPL",
-            "🖥️ Microsoft": "MSFT",
-            "🔍 Google": "GOOGL",
-            "📦 Amazon": "AMZN",
-            "⚡ Tesla": "TSLA",
-            "🎬 Netflix": "NFLX"
-        }
-        
-        for name, symbol in us_stocks.items():
-            if st.button(name, key=f"us_{symbol}", use_container_width=True):
-                stock_code = symbol
-                st.success(f"✅ {name} を選択しました")
+    selected = st.selectbox(
+        "会社を選んでね",
+        list(popular_stocks.keys())
+    )
+    stock_code = popular_stocks[selected]
+    st.info(f"選択中: **{selected}** ({stock_code})")
 
-elif search_method == "📝 銘柄コード直接入力":
+else:  # コード直接入力
     st.markdown("""
     <div class="explanation-box">
-    <strong>📝 銘柄コード直接入力</strong><br>
-    <span>知っている銘柄コードを直接入力してください</span>
+    <strong>⌨️ 銘柄コード直接入力</strong><br>
+    <span>すでに銘柄コードを知っている場合はこちら</span>
     </div>
     """, unsafe_allow_html=True)
     
-    stock_code = st.text_input(
-        "銘柄コードを入力",
-        placeholder="例: AAPL, 7203.T, MSFT",
-        help="米国株: AAPL, MSFT など / 日本株: 7203.T, 6758.T など"
-    ).upper()
+    stock_code_input = st.text_input(
+        "銘柄コード",
+        "AAPL",
+        placeholder="例: AAPL, 7203.T, TSLA"
+    )
+    
+    # 銘柄コードのサニタイゼーション
+    try:
+        if 'sanitize_stock_symbol' in locals():
+            stock_code = sanitize_stock_symbol(stock_code_input)
+        else:
+            stock_code = stock_code_input.strip().upper()
+    except ValueError as e:
+        st.error(f"❌ {e}")
+        stock_code = "AAPL"
+    
+    st.markdown("""
+    <div class="tip-box">
+    💡 <strong>ヒント：</strong> <span>日本の会社は最後に「.T」が付きます（例：7203.T）</span>
+    </div>
+    """, unsafe_allow_html=True)
 
-if not stock_code:
-    stock_code = "AAPL"  # デフォルト
+st.markdown("### 📅 どのくらいの期間を調べる？")
+st.markdown("""
+<div class="explanation-box">
+<strong>📊 期間の選び方</strong><br>
+<span>短い期間 → 最近の動きがよく分かる</span><br>
+<span>長い期間 → 大きな流れ（トレンド）が分かる</span>
+</div>
+""", unsafe_allow_html=True)
 
-# 分析期間設定
-st.markdown("### 📅 分析期間設定")
+period_options = {
+    "1ヶ月": 30,
+    "3ヶ月": 90,
+    "6ヶ月": 180,
+    "1年": 365,
+    "2年": 730
+}
+selected_period = st.select_slider(
+    "期間を選んでね",
+    options=list(period_options.keys()),
+    value="6ヶ月"
+)
+days = period_options[selected_period]
+start_date = datetime.now() - timedelta(days=days)
+end_date = datetime.now()
+```
+
+# — 詳細設定（折りたたみ） —
+
+with st.expander(“🔧 詳細設定（上級者向け）”):
+st.markdown(”#### 📈 テクニカル指標（株価の動きを分析する道具）”)
+
+```
+st.markdown("""
+<div class="explanation-box">
+<strong>🔬 テクニカル指標って何？</strong><br>
+<span>株価のグラフを見て「上がりそう」「下がりそう」を学習するための道具です。</span><br>
+<span>数学を使って、人間には見えないパターンを見つけてくれます！</span><br>
+<span><strong>注意：</strong> 100%正確ではありません。参考程度に使いましょう。</span>
+</div>
+""", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 with col1:
-    period_option = st.selectbox(
-        "期間選択",
-        ["1ヶ月", "3ヶ月", "6ヶ月", "1年", "2年", "カスタム期間"]
-    )
-
+    st.markdown("**短期移動平均**")
+    short_ma = st.slider("短期移動平均", 5, 50, Config.TECHNICAL_INDICATORS['MA_SHORT'])
+    
+    st.markdown("**RSI（買われすぎ・売られすぎ）**")
+    rsi_period = st.slider("RSI期間", 5, 30, Config.TECHNICAL_INDICATORS['RSI_PERIOD'])
+    
 with col2:
-    if period_option == "カスタム期間":
-        end_date = st.date_input("終了日", datetime.now())
-        start_date = st.date_input("開始日", datetime.now() - timedelta(days=365))
-    else:
-        period_map = {
-            "1ヶ月": 30,
-            "3ヶ月": 90,
-            "6ヶ月": 180,
-            "1年": 365,
-            "2年": 730
-        }
-        days = period_map[period_option]
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days)
+    st.markdown("**長期移動平均**")
+    long_ma = st.slider("長期移動平均", 20, 200, Config.TECHNICAL_INDICATORS['MA_LONG'])
+    
+    st.markdown("**ボリンジャーバンド期間**")
+    bb_period = st.slider("BB期間", 10, 30, Config.TECHNICAL_INDICATORS['BB_PERIOD'])
 
-# 分析実行ボタン
-if st.button("🚀 分析開始", type="primary", use_container_width=True):
-    with st.spinner("📊 データを取得・分析中..."):
-        # データ取得
-        data, info = fetch_stock_data(stock_code, start_date, end_date)
-        
-        if data is None:
-            st.error("❌ データの取得に失敗しました。銘柄コードを確認してください。")
-            return
-        
-        # テクニカル指標計算
-        df_with_indicators = calculate_indicators(data)
-        
-        if df_with_indicators is None:
-            st.error("❌ データが不足しています。より長い期間を選択してください。")
-            return
-        
-        # 会社情報表示
-        if info:
-            st.markdown("### 📊 企業情報")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("会社名", info.get('longName', 'N/A')[:20] + "...")
-            
-            with col2:
-                current_price = info.get('regularMarketPrice', 0)
-                prev_close = info.get('previousClose', 0)
-                change = current_price - prev_close if current_price and prev_close else 0
-                change_pct = (change / prev_close * 100) if prev_close else 0
-                st.metric(
-                    "現在価格", 
-                    f"${current_price:.2f}" if current_price else "N/A",
-                    f"{change:+.2f} ({change_pct:+.1f}%)"
-                )
-            
-            with col3:
-                market_cap = info.get('marketCap')
-                if market_cap:
-                    if market_cap >= 1e12:
-                        market_cap_str = f"${market_cap/1e12:.1f}T"
-                    elif market_cap >= 1e9:
-                        market_cap_str = f"${market_cap/1e9:.1f}B"
-                    else:
-                        market_cap_str = f"${market_cap/1e6:.1f}M"
-                else:
-                    market_cap_str = "N/A"
-                st.metric("時価総額", market_cap_str)
-            
-            with col4:
-                st.metric("業界", info.get('sector', 'N/A'))
-        
-        # AIによる投資判断
-        st.markdown("### 🤖 AI投資判断")
-        judgment, score, signals = generate_signals_advanced(df_with_indicators)
-        
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            # スコア表示
-            if score > 0:
-                st.success(f"**{judgment}**")
-                st.progress(min(score/100, 1.0))
-                st.write(f"信頼度: {abs(score):.1f}%")
-            elif score < 0:
-                st.error(f"**{judgment}**")
-                st.progress(min(abs(score)/100, 1.0))
-                st.write(f"信頼度: {abs(score):.1f}%")
-            else:
-                st.warning(f"**{judgment}**")
-                st.write("信頼度: 50%")
-        
-        with col2:
-            st.markdown("**📋 判断根拠:**")
-            for signal in signals:
-                st.write(signal)
-        
-        # チャート表示
-        st.markdown("### 📈 テクニカル分析チャート")
-        chart = create_comprehensive_chart(df_with_indicators, info)
-        if chart:
-            st.plotly_chart(chart, use_container_width=True)
-        
-        # バックテスト
-        st.markdown("### 💰 投資シミュレーション")
-        
-        with st.expander("📊 シミュレーション設定", expanded=False):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                initial_capital = st.number_input(
-                    "初期資金 (円)", 
-                    value=1000000, 
-                    min_value=100000, 
-                    max_value=10000000,
-                    step=100000
-                )
-                risk_pct = st.slider(
-                    "1取引あたりのリスク (%)", 
-                    min_value=0.5, 
-                    max_value=5.0, 
-                    value=2.0, 
-                    step=0.1
-                )
-            
-            with col2:
-                stop_loss_pct = st.slider(
-                    "損切りライン (%)", 
-                    min_value=1.0, 
-                    max_value=20.0, 
-                    value=5.0, 
-                    step=0.5
-                )
-                take_profit_pct = st.slider(
-                    "利益確定ライン (%)", 
-                    min_value=2.0, 
-                    max_value=50.0, 
-                    value=15.0, 
-                    step=1.0
-                )
-        
-        # バックテスト実行
-        with st.spinner("📊 投資シミュレーション実行中..."):
-            backtest_results = backtest_realistic(
-                df_with_indicators, 
-                initial_capital, 
-                risk_pct, 
-                stop_loss_pct, 
-                take_profit_pct
-            )
-        
-        if backtest_results:
-            # バックテスト結果サマリー
-            final_value = backtest_results['portfolio_value'][-1]
-            total_return = (final_value / initial_capital - 1) * 100
-            total_trades = len(backtest_results['trades'])
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric(
-                    "最終資産", 
-                    f"¥{final_value:,.0f}",
-                    f"{total_return:+.1f}%"
-                )
-            
-            with col2:
-                profit_loss = final_value - initial_capital
-                st.metric(
-                    "損益", 
-                    f"¥{profit_loss:+,.0f}",
-                    "profit" if profit_loss > 0 else "loss"
-                )
-            
-            with col3:
-                st.metric("総取引回数", f"{total_trades}回")
-            
-            with col4:
-                if total_return > 10:
-                    performance = "🎉 優秀"
-                elif total_return > 0:
-                    performance = "👍 良好"
-                else:
-                    performance = "📚 要改善"
-                st.metric("成績評価", performance)
-            
-            # バックテストチャート
-            backtest_chart = create_backtest_chart(backtest_results)
-            if backtest_chart:
-                st.plotly_chart(backtest_chart, use_container_width=True)
-            
-            # 取引履歴
-            if backtest_results['trades']:
-                st.markdown("### 📝 取引履歴")
-                trades_df = pd.DataFrame(backtest_results['trades'])
-                st.dataframe(trades_df, use_container_width=True)
-        
-        # ポートフォリオに追加オプション
-        st.markdown("### 💼 ポートフォリオ管理")
-        
-        with st.expander("📝 この銘柄をポートフォリオに追加", expanded=False):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                shares = st.number_input(
-                    "株数", 
-                    value=100, 
-                    min_value=1, 
-                    max_value=10000
-                )
-            
-            with col2:
-                avg_price = st.number_input(
-                    "平均取得価格", 
-                    value=current_price if 'current_price' in locals() else 100.0,
-                    min_value=0.01
-                )
-            
-            if st.button("💼 ポートフォリオに追加", type="secondary"):
-                company_name = info.get('longName', stock_code) if info else stock_code
-                add_to_portfolio(stock_code, shares, avg_price, company_name)
-                st.success(f"✅ {company_name} をポートフォリオに追加しました！")
-```
+# 入力値の検証
+if short_ma >= long_ma:
+    st.warning("⚠️ 短期移動平均は長期移動平均より小さい値にしてください")
 
-def portfolio_management_page():
-“”“ポートフォリオ管理ページ”””
-st.title(“💼 ポートフォリオ管理”)
+st.markdown("#### 💰 投資シミュレーション設定")
 
-```
-if not st.session_state.portfolio:
-    st.info("📝 まだポートフォリオに銘柄が登録されていません。株価分析ページで銘柄を追加してください。")
-    return
+st.markdown("""
+<div class="explanation-box">
+<strong>🎮 投資シミュレーションって何？</strong><br>
+<span>「もしこのルールで投資していたら、お金はどうなっていた？」を計算してくれます。</span><br>
+<span>実際のお金は使わないので安心です！</span><br>
+<span><strong>注意：</strong> 過去の結果と将来の結果は別物です。</span>
+</div>
+""", unsafe_allow_html=True)
 
-# ポートフォリオパフォーマンス取得
-with st.spinner("📊 ポートフォリオ情報を取得中..."):
-    portfolio_performance = get_portfolio_performance()
-
-if not portfolio_performance:
-    st.error("❌ ポートフォリオ情報の取得に失敗しました。")
-    return
-
-# 総合パフォーマンス表示
-st.markdown("### 📊 ポートフォリオサマリー")
-
-col1, col2, col3, col4 = st.columns(4)
-
+col1, col2 = st.columns(2)
 with col1:
-    st.metric(
-        "総投資額", 
-        f"¥{portfolio_performance['total_investment']:,.0f}"
-    )
-
+    st.markdown("**初期資金**")
+    initial_capital = st.number_input(
+        "初期資金（万円）",
+        10, 1000, Config.BACKTEST_DEFAULTS['INITIAL_CAPITAL'] // 10000, 10,
+        format="%d"
+    ) * 10000
+    
+    st.markdown("**リスク許容率**")
+    risk_per_trade = st.slider("リスク許容率(%)", 0.5, 5.0, Config.BACKTEST_DEFAULTS['RISK_PER_TRADE'], 0.5)
+    
 with col2:
-    st.metric(
-        "現在価値", 
-        f"¥{portfolio_performance['total_current_value']:,.0f}",
-        f"¥{portfolio_performance['total_gain_loss']:+,.0f}"
-    )
+    st.markdown("**損切り率**")
+    stop_loss_pct = st.slider("損切り率(%)", 1.0, 20.0, Config.BACKTEST_DEFAULTS['STOP_LOSS_PCT'], 0.5)
+    
+    st.markdown("**利益確定率**")
+    take_profit_pct = st.slider("利益確定率(%)", 2.0, 50.0, Config.BACKTEST_DEFAULTS['TAKE_PROFIT_PCT'], 1.0)
 
-with col3:
-    gain_loss_pct = portfolio_performance['total_gain_loss_pct']
-    st.metric(
-        "損益率", 
-        f"{gain_loss_pct:+.1f}%",
-        "profit" if gain_loss_pct > 0 else "loss"
-    )
+st.markdown("**取引手数料率**")
+trade_cost_rate = st.slider("取引手数料率(%)", 0.0, 1.0, Config.BACKTEST_DEFAULTS['TRADE_COST_RATE'], 0.01)
 
-with col4:
-    num_holdings = len(portfolio_performance['portfolio_data'])
-    st.metric("保有銘柄数", f"{num_holdings}銘柄")
+# パラメータ検証
+try:
+    if 'validate_backtest_parameters' in locals():
+        validate_backtest_parameters(initial_capital, risk_per_trade, stop_loss_pct, take_profit_pct, trade_cost_rate)
+except ValueError as e:
+    st.error(f"❌ 設定エラー: {e}")
+```
 
-# 個別銘柄詳細
-st.markdown("### 📋 保有銘柄詳細")
+# — データ処理関数（エラーハンドリング強化版） —
 
-portfolio_df = pd.DataFrame(portfolio_performance['portfolio_data'])
+@st.cache_data
+def fetch_stock_data(symbol, start, end):
+“”“データ取得関数（フォールバック版）”””
+try:
+if ‘fetch_stock_data_robust’ in locals():
+return fetch_stock_data_robust(symbol, start, end)
+else:
+# 従来の方法
+stock = yf.Ticker(symbol)
+df = stock.history(start=start, end=end)
+if df.empty:
+return None, None
+info = stock.info
+return df, info
+except Exception as e:
+logger.error(f”データ取得エラー: {e}”)
+st.error(f”❌ データ取得エラー: {str(e)}”)
+return None, None
 
-# データフレーム表示
-st.dataframe(
-    portfolio_df[[
-        'symbol', 'name', 'shares', 'avg_price', 
-        'current_price', 'investment', 'current_value', 
-        'gain_loss', 'gain_loss_pct'
-    ]].round(2),
-    use_container_width=True
+def calculate_indicators(df, short_window, long_window, rsi_window, bb_window):
+“”“テクニカル指標計算（エラーハンドリング追加）”””
+try:
+df[‘MA_short’] = ta.trend.sma_indicator(df[‘Close’], window=short_window)
+df[‘MA_long’] = ta.trend.sma_indicator(df[‘Close’], window=long_window)
+df[‘RSI’] = ta.momentum.rsi(df[‘Close’], window=rsi_window)
+
+```
+    bb = ta.volatility.BollingerBands(df['Close'], window=bb_window, window_dev=2)
+    df['BB_upper'] = bb.bollinger_hband()
+    df['BB_middle'] = bb.bollinger_mavg()
+    df['BB_lower'] = bb.bollinger_lband()
+
+    macd = ta.trend.MACD(df['Close'])
+    df['MACD'] = macd.macd()
+    df['MACD_signal'] = macd.macd_signal()
+    df['MACD_diff'] = macd.macd_diff()
+
+    df['Volume_MA'] = df['Volume'].rolling(window=20).mean()
+    df['ATR'] = ta.volatility.average_true_range(df['High'], df['Low'], df['Close'])
+
+    return df
+except Exception as e:
+    logger.error(f"指標計算エラー: {e}")
+    st.error(f"❌ 指標計算エラー: {str(e)}")
+    return df
+```
+
+def generate_signals_advanced(df):
+“”“シグナル生成（設定ファイル対応）”””
+try:
+signals = pd.DataFrame(index=df.index)
+signals[‘buy_score’] = 0
+signals[‘sell_score’] = 0
+
+```
+    # 設定値の取得
+    buy_threshold = Config.SIGNAL_THRESHOLDS['BUY_THRESHOLD']
+    sell_threshold = Config.SIGNAL_THRESHOLDS['SELL_THRESHOLD']
+    rsi_oversold = Config.SIGNAL_THRESHOLDS['RSI_OVERSOLD']
+    rsi_overbought = Config.SIGNAL_THRESHOLDS['RSI_OVERBOUGHT']
+
+    signals.loc[df['MA_short'] > df['MA_long'], 'buy_score'] += 1
+    signals.loc[df['MA_short'] < df['MA_long'], 'sell_score'] += 1
+
+    signals.loc[df['RSI'] < rsi_oversold, 'buy_score'] += 1
+    signals.loc[df['RSI'] > rsi_overbought, 'sell_score'] += 1
+
+    signals.loc[df['Close'] < df['BB_lower'], 'buy_score'] += 1.5
+    signals.loc[df['Close'] > df['BB_upper'], 'sell_score'] += 1.5
+
+    signals.loc[(df['MACD'] > df['MACD_signal']) & (df['MACD'].shift(1) < df['MACD_signal'].shift(1)), 'buy_score'] += 1.5
+    signals.loc[(df['MACD'] < df['MACD_signal']) & (df['MACD'].shift(1) > df['MACD_signal'].shift(1)), 'sell_score'] += 1.5
+
+    signals.loc[df['Volume'] > df['Volume_MA'], 'buy_score'] += 0.5
+    signals.loc[df['Volume'] > df['Volume_MA'], 'sell_score'] += 0.5
+
+    signals['signal'] = 0
+    signals.loc[signals['buy_score'] >= buy_threshold, 'signal'] = 1
+    signals.loc[signals['sell_score'] >= sell_threshold, 'signal'] = -1
+
+    return signals
+except Exception as e:
+    logger.error(f"シグナル生成エラー: {e}")
+    st.error(f"❌ シグナル生成エラー: {str(e)}")
+    return pd.DataFrame(index=df.index, columns=['buy_score', 'sell_score', 'signal']).fillna(0)
+```
+
+def backtest_realistic(df, signals, initial_capital, risk_pct, stop_loss_pct, take_profit_pct, cost_pct):
+“”“バックテスト実行（エラーハンドリング強化）”””
+try:
+cash = initial_capital
+position = 0
+entry_price = 0
+portfolio_values = []
+trade_log = []
+
+```
+    cost_rate = cost_pct / 100.0
+
+    for i in range(len(df)):
+        current_price = df['Close'].iloc[i]
+        signal = signals['signal'].iloc[i]
+
+        if position > 0:
+            stop_loss_price = entry_price * (1 - stop_loss_pct / 100.0)
+            take_profit_price = entry_price * (1 + take_profit_pct / 100.0)
+
+            if current_price <= stop_loss_price or current_price >= take_profit_price or signal == -1:
+                revenue = position * current_price * (1 - cost_rate)
+                cash += revenue
+                trade_log.append({'Date': df.index[i], 'Type': 'Sell', 'Price': current_price, 'Shares': position, 'Portfolio': cash})
+                position = 0
+                entry_price = 0
+
+        if position == 0 and signal == 1:
+            risk_per_share = current_price - (current_price * (1 - stop_loss_pct / 100.0))
+            if risk_per_share > 0:
+                capital_at_risk = cash * (risk_pct / 100.0)
+                shares_to_buy = int(capital_at_risk / risk_per_share)
+
+                cost = shares_to_buy * current_price * (1 + cost_rate)
+
+                if shares_to_buy > 0 and cash >= cost:
+                    position = shares_to_buy
+                    entry_price = current_price
+                    cash -= cost
+                    trade_log.append({'Date': df.index[i], 'Type': 'Buy', 'Price': current_price, 'Shares': position, 'Portfolio': cash + position * current_price})
+
+        portfolio_value = cash + (position * current_price)
+        portfolio_values.append(portfolio_value)
+
+    portfolio = pd.DataFrame({'Total': portfolio_values}, index=df.index)
+    portfolio['Returns'] = portfolio['Total'].pct_change()
+    trade_df = pd.DataFrame(trade_log)
+
+    return portfolio, trade_df
+except Exception as e:
+    logger.error(f"バックテストエラー: {e}")
+    st.error(f"❌ バックテストエラー: {str(e)}")
+    # 最低限のダミーデータを返す
+    portfolio = pd.DataFrame({'Total': [initial_capital] * len(df), 'Returns': [0] * len(df)}, index=df.index)
+    trade_df = pd.DataFrame()
+    return portfolio, trade_df
+```
+
+# ポートフォリオ管理関数（エラーハンドリング追加）
+
+def add_to_portfolio(symbol, shares, price, longName):
+“”“ポートフォリオ追加（エラーハンドリング強化）”””
+try:
+if not isinstance(shares, (int, float)) or shares <= 0:
+st.error(“❌ 株数は正の数値である必要があります”)
+return
+
+```
+    if not isinstance(price, (int, float)) or price <= 0:
+        st.error("❌ 価格は正の数値である必要があります")
+        return
+    
+    if symbol in st.session_state.portfolio:
+        current_shares = st.session_state.portfolio[symbol]['shares']
+        current_avg_price = st.session_state.portfolio[symbol]['avg_price']
+        new_total_cost = (current_shares * current_avg_price) + (shares * price)
+        new_total_shares = current_shares + shares
+        st.session_state.portfolio[symbol]['shares'] = new_total_shares
+        st.session_state.portfolio[symbol]['avg_price'] = new_total_cost / new_total_shares
+        st.success(f"✅ ポートフォリオを更新しました: {longName} - {shares}株追加")
+    else:
+        st.session_state.portfolio[symbol] = {
+            'shares': shares,
+            'avg_price': price,
+            'longName': longName
+        }
+        st.success(f"✅ ポートフォリオに追加しました: {longName} - {shares}株")
+except Exception as e:
+    logger.error(f"ポートフォリオ追加エラー: {e}")
+    st.error(f"❌ ポートフォリオ追加エラー: {str(e)}")
+```
+
+def remove_from_portfolio(symbol):
+“”“ポートフォリオ削除（エラーハンドリング追加）”””
+try:
+if symbol in st.session_state.portfolio:
+longName = st.session_state.portfolio[symbol][‘longName’]
+del st.session_state.portfolio[symbol]
+st.success(f”🗑️ ポートフォリオから削除しました: {longName}”)
+else:
+st.warning(“ポートフォリオに銘柄がありません。”)
+except Exception as e:
+logger.error(f”ポートフォリオ削除エラー: {e}”)
+st.error(f”❌ ポートフォリオ削除エラー: {str(e)}”)
+
+# — ポートフォリオ管理セクション —
+
+st.markdown(”—”)
+st.markdown(”## 💼 マイポートフォリオ（お気に入りリスト）”)
+
+st.markdown(”””
+
+<div class="explanation-box">
+<strong>📂 ポートフォリオって何？</strong><br>
+<span>気になる会社の株をリストにして保存できる機能です！</span><br>
+<span>「後で見たい会社」や「勉強したい会社」を覚えておけます。</span><br>
+<span><strong>注意：</strong> これは学習用のリストです。実際の投資ではありません。</span>
+</div>
+""", unsafe_allow_html=True)
+
+col_portfolio1, col_portfolio2 = st.columns(2)
+
+with col_portfolio1:
+st.markdown(”### ➕ 会社を追加”)
+portfolio_symbol = st.text_input(“会社コード”, placeholder=“例: AAPL, 7203.T”, key=“portfolio_symbol_input”)
+portfolio_shares = st.number_input(“何株？”, min_value=1, value=10, step=1, key=“portfolio_shares_input”)
+
+```
+if st.button("リストに追加", key="add_portfolio_main", use_container_width=True):
+    if portfolio_symbol:
+        try:
+            with st.spinner("🔍 会社情報を取得中..."):
+                temp_stock = yf.Ticker(portfolio_symbol)
+                temp_info = temp_stock.info
+                temp_price = temp_info.get('currentPrice', temp_info.get('regularMarketPrice', 0))
+                temp_name = temp_info.get('longName', portfolio_symbol)
+            
+            if temp_price > 0:
+                add_to_portfolio(portfolio_symbol, portfolio_shares, temp_price, temp_name)
+                st.rerun()
+            else:
+                st.error("❌ 会社の情報が見つかりませんでした")
+        except Exception as e:
+            st.error(f"❌ エラーが発生しました: {e}")
+    else:
+        st.warning("⚠️ 会社コードを入力してください")
+```
+
+with col_portfolio2:
+st.markdown(”### ➖ 会社を削除”)
+if st.session_state.portfolio:
+portfolio_symbols = list(st.session_state.portfolio.keys())
+symbol_to_remove = st.selectbox(
+“削除する会社”,
+portfolio_symbols,
+format_func=lambda x: f”{st.session_state.portfolio[x][‘longName’]} ({x})”,
+key=“remove_symbol_select”
 )
 
-# ポートフォリオ構成チャート
-st.markdown("### 📊 ポートフォリオ構成")
-
-fig = px.pie(
-    portfolio_df, 
-    values='current_value', 
-    names='symbol',
-    title="保有銘柄別構成比"
-)
-st.plotly_chart(fig, use_container_width=True)
-
-# 銘柄削除機能
-st.markdown("### 🗑️ 銘柄管理")
-
-with st.expander("銘柄を削除", expanded=False):
-    symbol_to_remove = st.selectbox(
-        "削除する銘柄を選択",
-        list(st.session_state.portfolio.keys())
-    )
-    
-    if st.button("🗑️ 削除", type="secondary"):
-        del st.session_state.portfolio[symbol_to_remove]
-        st.success(f"✅ {symbol_to_remove} をポートフォリオから削除しました")
-        st.experimental_rerun()
+```
+    if st.button("削除", key="remove_portfolio_main", use_container_width=True):
+        remove_from_portfolio(symbol_to_remove)
+        st.rerun()
+else:
+    st.info("まだ会社が追加されていません")
 ```
 
-def education_page():
-“”“投資教育ページ”””
-st.title(“📚 投資の基礎”)
+# ポートフォリオ表示（エラーハンドリング強化）
+
+if st.session_state.portfolio:
+with st.expander(“📊 保存されている会社一覧”, expanded=True):
+try:
+portfolio_data = []
+total_current_value = 0
+total_cost_basis = 0
 
 ```
-tab1, tab2, tab3, tab4 = st.tabs(["💡 基本概念", "📊 テクニカル分析", "⚠️ リスク管理", "🎯 実践tips"])
+        symbols_in_portfolio = list(st.session_state.portfolio.keys())
+        current_prices_map = {}
+        
+        # 現在価格の取得（エラーハンドリング強化）
+        try:
+            if len(symbols_in_portfolio) == 1:
+                stock = yf.Ticker(symbols_in_portfolio[0])
+                info = stock.info
+                current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
+                current_prices_map = {symbols_in_portfolio[0]: current_price}
+            else:
+                current_prices_df = yf.download(symbols_in_portfolio, period="1d", progress=False)['Close']
+                if isinstance(current_prices_df, pd.Series):
+                    current_prices_map = {symbols_in_portfolio[0]: current_prices_df.iloc[-1]}
+                else:
+                    current_prices_map = current_prices_df.iloc[-1].to_dict()
+        except Exception as e:
+            st.warning(f"⚠️ 現在価格の取得に失敗しました: {e}")
+            current_prices_map = {}
 
-with tab1:
-    st.markdown("""
-    ### 💡 投資の基本概念
-    
-    #### 🏢 株式とは？
-    株式とは「会社の一部を買うこと」です。会社が成長すれば株価も上がり、利益が得られます。
-    
-    #### 📈 リスクとリターン
-    - **リターン**: 投資で得られる利益
-    - **リスク**: 損失を被る可能性
-    - **重要**: 高いリターンには高いリスクが伴います
-    
-    #### 🎯 分散投資
-    「卵を一つのカゴに盛らない」という格言通り、複数の銘柄に投資してリスクを分散させます。
-    
-    #### ⏰ 長期投資
-    短期的な値動きに一喜一憂せず、長期的な成長を信じて投資を続けることが重要です。
-    """)
+        for symbol, details in st.session_state.portfolio.items():
+            long_name = details['longName']
+            shares = details['shares']
+            avg_price = details['avg_price']
+            
+            current_price = current_prices_map.get(symbol, avg_price)
+            
+            cost_basis = shares * avg_price
+            current_value = shares * current_price
+            profit_loss = current_value - cost_basis
+            profit_loss_pct = (profit_loss / cost_basis) * 100 if cost_basis != 0 else 0
 
-with tab2:
-    st.markdown("""
-    ### 📊 テクニカル分析の基礎
-    
-    #### 📈 移動平均線
-    - **短期移動平均**: 20日間の平均価格
-    - **長期移動平均**: 50日間の平均価格
-    - **ゴールデンクロス**: 短期が長期を上抜ける（買いシグナル）
-    - **デッドクロス**: 短期が長期を下抜ける（売りシグナル）
-    
-    #### 🎯 RSI（相対力指数）
-    - **0-100の範囲**: 現在の値動きの強さを表示
-    - **70以上**: 買われすぎ（売りを検討）
-    - **30以下**: 売られすぎ（買いを検討）
-    
-    #### 📊 ボリンジャーバンド
-    - **上限・下限**: 価格の正常な変動範囲
-    - **バンド下限**: 割安圏（買いを検討）
-    - **バンド上限**: 割高圏（売りを検討）
-    
-    #### ⚡ MACD
-    - **ゴールデンクロス**: MACDがシグナル線を上抜け
-    - **デッドクロス**: MACDがシグナル線を下抜け
-    """)
+            portfolio_data.append({
+                "会社名": long_name,
+                "コード": symbol,
+                "株数": shares,
+                "買った時の値段": f"¥{avg_price:,.2f}",
+                "今の値段": f"¥{current_price:,.2f}",
+                "今の価値": f"¥{current_value:,.0f}",
+                "儲け/損": f"¥{profit_loss:,.0f}",
+                "儲け/損(%)": f"{profit_loss_pct:,.2f}%"
+            })
+            total_current_value += current_value
+            total_cost_basis += cost_basis
 
-with tab3:
-    st.markdown("""
-    ### ⚠️ リスク管理
-    
-    #### 🛡️ 損切りの重要性
-    - **2%ルール**: 1回の取引で総資産の2%以上リスクを取らない
-    - **損切りライン**: 事前に損失限度額を決める
-    - **感情的な判断を避ける**: ルールに従って機械的に実行
-    
-    #### 💰 ポジションサイジング
-    ```
-    投資額 = 総資産 × リスク許容度 ÷ 損切り幅
-    ```
-    
-    #### 📚 学習の継続
-    - **失敗から学ぶ**: 損失も大切な学習機会
-    - **記録を取る**: 投資判断の根拠を記録
-    - **情報収集**: 常に新しい情報をキャッチアップ
-    """)
+        portfolio_df = pd.DataFrame(portfolio_data)
+        st.dataframe(portfolio_df, hide_index=True, use_container_width=True)
 
-with tab4:
-    st.markdown("""
-    ### 🎯 実践的なTips
+        total_profit_loss = total_current_value - total_cost_basis
+        total_profit_loss_pct = (total_profit_loss / total_cost_basis) * 100 if total_cost_basis != 0 else 0
+
+        st.markdown("#### 📈 全体の成績（学習用シミュレーション）")
+        col_summary1, col_summary2, col_summary3 = st.columns(3)
+        with col_summary1:
+            st.metric("💰 投資した金額", f"¥{total_cost_basis:,.0f}")
+        with col_summary2:
+            st.metric("💎 今の価値", f"¥{total_current_value:,.0f}")
+        with col_summary3:
+            st.metric("📊 儲け/損", f"¥{total_profit_loss:,.0f}", delta=f"{total_profit_loss_pct:,.2f}%")
+            
+        st.markdown("""
+        <div class="tip-box">
+        💡 <strong>これは学習用です：</strong> <span>実際のお金は動いていません</span><br>
+        <strong>目的：</strong> <span>株価の動きを勉強するためのツールです</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    except Exception as e:
+        st.error(f"❌ ポートフォリオ表示エラー: {e}")
+```
+
+# — メイン分析実行 —
+
+st.markdown(”—”)
+if st.button(“🚀 分析開始”, type=“primary”, use_container_width=True):
+
+```
+with st.spinner("📊 データを分析中...少し時間がかかります"):
+    df, info = fetch_stock_data(stock_code, start_date, end_date)
+
+if df is not None and len(df) > 0:
+    try:
+        df = calculate_indicators(df, short_ma, long_ma, rsi_period, bb_period)
+        signals = generate_signals_advanced(df)
+        portfolio_bt, trade_log = backtest_realistic(df, signals, initial_capital, risk_per_trade, stop_loss_pct, take_profit_pct, trade_cost_rate)
+
+        # --- 企業情報サマリー ---
+        st.markdown("---")
+        company_name = info.get('longName', stock_code) if info else stock_code
+        st.markdown(f"### 📊 {company_name} の分析結果")
+        
+        st.markdown("""
+        <div class="legal-warning">
+        ⚠️ <strong>この分析結果について</strong><br>
+        • 過去のデータに基づく参考情報です<br>
+        • 将来の株価を保証するものではありません<br>
+        • 投資判断は自己責任でお願いします<br>
+        • 実際の投資前には複数の情報源を確認してください
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 現在の分析銘柄をポートフォリオに追加
+        st.markdown("**💼 この会社をリストに保存**")
+        col_quick1, col_quick2 = st.columns([3, 1])
+        with col_quick1:
+            quick_shares = st.number_input("株数", min_value=1, value=10, step=1, key="quick_shares")
+        with col_quick2:
+            if st.button("保存", key="quick_add_current", use_container_width=True):
+                current_price = df['Close'].iloc[-1]
+                add_to_portfolio(stock_code, quick_shares, current_price, company_name)
+                st.rerun()
+
+        st.markdown("---")
+
+        # 主要指標（スマホ最適化レイアウト）
+        col1, col2 = st.columns(2)
+        with col1:
+            current_price = df['Close'].iloc[-1]
+            currency = info.get('currency', '') if info else ''
+            st.metric(
+                "💰 今の株価",
+                f"{current_price:,.2f} {currency}"
+            )
+
+            volume = df['Volume'].iloc[-1]
+            st.metric(
+                "📦 売買量",
+                f"{volume:,.0f}"
+            )
+
+        with col2:
+            if len(df) > 1:
+                prev_price = df['Close'].iloc[-2]
+                change_pct = (current_price / prev_price - 1) * 100
+                change_val = current_price - prev_price
+                st.metric(
+                    "📈 昨日からの変化",
+                    f"{change_pct:.2f}%",
+                    delta=f"{change_val:.2f}"
+                )
+
+            rsi_current = df['RSI'].iloc[-1]
+            if rsi_current < 30:
+                rsi_status = "売られすぎ😢"
+            elif rsi_current > 70:
+                rsi_status = "買われすぎ😱"
+            else:
+                rsi_status = "普通😐"
+            st.metric(
+                "🌡️ RSI（人気度）",
+                f"{rsi_current:.1f}",
+                delta=rsi_status
+            )
+
+        # --- 投資判断サマリー（表現を修正） ---
+        st.markdown("### 🎯 テクニカル分析結果")
+
+        st.markdown("""
+        <div class="explanation-box">
+        <strong>🤖 分析結果の見方</strong><br>
+        <span>コンピューターが色々な指標を見て、テクニカル分析を行いました。</span><br>
+        <span><strong>重要：</strong> これは参考情報であり、投資助言ではありません。</span><br>
+        <span><strong>注意：</strong> 100%当たるわけではないので、学習の参考程度に見てください。</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        latest_signal = signals['signal'].iloc[-1]
+        buy_score = signals['buy_score'].iloc[-1]
+        sell_score = signals['sell_score'].iloc[-1]
+
+        if latest_signal == 1:
+            st.success(f"""
+            ### 🟢 買いサイン検出
+            **スコア: {buy_score:.1f}点**
+
+            テクニカル指標が「買いサイン」を示しています
+            
+            ⚠️ 注意：これは投資助言ではありません。参考情報として学習にお使いください
+            """)
+        elif latest_signal == -1:
+            st.error(f"""
+            ### 🔴 売りサイン検出  
+            **スコア: {sell_score:.1f}点**
+
+            テクニカル指標が「売りサイン」を示しています
+            
+            ⚠️ 注意：これは投資助言ではありません。参考情報として学習にお使いください
+            """)
+        else:
+            st.info(f"""
+            ### ⚪ 中立シグナル（様子見）
+            **買いスコア: {buy_score:.1f}点 | 売りスコア: {sell_score:.1f}点**
+
+            現在は明確なサインが出ていない状況です
+            
+            📚 学習ポイント：不明確な時は様子見も大切な戦略です
+            """)
+
+        # 判断根拠
+        with st.expander("📋 なぜその分析結果になったの？（詳しい理由）"):
+            st.markdown("""
+            <div class="explanation-box">
+            <strong>🔍 分析の根拠</strong><br>
+            <span>コンピューターが以下の4つの要素を見て分析しました：</span><br>
+            <span>1. 📈 <strong>移動平均</strong>：最近の流れ</span><br>
+            <span>2. 🌡️ <strong>RSI</strong>：買われすぎ・売られすぎ</span><br>
+            <span>3. 📊 <strong>ボリンジャーバンド</strong>：普通の値段の範囲</span><br>
+            <span>4. ⚡ <strong>MACD</strong>：勢いの変化</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            reasons = []
+
+            if df['MA_short'].iloc[-1] > df['MA_long'].iloc[-1]:
+                reasons.append("✅ **流れが良い** - 短期の平均 > 長期の平均（上昇トレンド）")
+            else:
+                reasons.append("❌ **流れが悪い** - 短期の平均 < 長期の平均（下降トレンド）")
+
+            rsi_oversold = Config.SIGNAL_THRESHOLDS['RSI_OVERSOLD']
+            rsi_overbought = Config.SIGNAL_THRESHOLDS['RSI_OVERBOUGHT']
+            
+            if df['RSI'].iloc[-1] < rsi_oversold:
+                reasons.append(f"✅ **売られすぎ** - RSI = {df['RSI'].iloc[-1]:.1f}（反発の可能性）")
+            elif df['RSI'].iloc[-1] > rsi_overbought:
+                reasons.append(f"❌ **買われすぎ** - RSI = {df['RSI'].iloc[-1]:.1f}（下がる可能性）")
+            else:
+                reasons.append(f"⚪ **普通の人気** - RSI = {df['RSI'].iloc[-1]:.1f}（中立）")
+
+            if df['Close'].iloc[-1] < df['BB_lower'].iloc[-1]:
+                reasons.append("✅ **安すぎる** - 普通の範囲より安い（買いチャンス？）")
+            elif df['Close'].iloc[-1] > df['BB_upper'].iloc[-1]:
+                reasons.append("❌ **高すぎる** - 普通の範囲より高い（注意）")
+
+            if df['MACD'].iloc[-1] > df['MACD_signal'].iloc[-1]:
+                reasons.append("✅ **勢いが良い** - 上がる力が強い")
+            else:
+                reasons.append("❌ **勢いが弱い** - 上がる力が弱い")
+
+            for reason in reasons:
+                st.write(reason)
+                
+            st.markdown("""
+            <div class="tip-box">
+            💡 <strong>学習ポイント：</strong> <span>これらの指標を組み合わせて総合的に判断することが大切です</span><br>
+            <strong>注意：</strong> <span>1つの指標だけで判断するのは危険です</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # --- チャート表示 ---
+        with st.expander("📈 株価のグラフ（チャート）", expanded=True):
+            st.markdown("""
+            <div class="explanation-box">
+            <strong>📊 グラフの見方</strong><br>
+            <span><strong>🕯️ ローソク：</strong> 緑=上がった日、赤=下がった日</span><br>
+            <span><strong>📏 線：</strong> オレンジ=短期平均、青=長期平均</span><br>
+            <span><strong>🎯 矢印：</strong> 🟢▲=買いサイン、🔴▼=売りサイン</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # チャート作成（エラーハンドリング追加）
+            try:
+                fig = make_subplots(
+                    rows=3, cols=1,
+                    shared_xaxes=True,
+                    vertical_spacing=0.08,
+                    row_heights=[0.6, 0.2, 0.2],
+                    subplot_titles=('📈 株価・移動平均・ボリンジャーバンド', '🌡️ RSI（人気度）', '⚡ MACD（勢い）')
+                )
+
+                # 価格チャート
+                fig.add_trace(
+                    go.Candlestick(
+                        x=df.index,
+                        open=df['Open'],
+                        high=df['High'],
+                        low=df['Low'],
+                        close=df['Close'],
+                        name='株価'
+                    ),
+                    row=1, col=1
+                )
+
+                # 移動平均線
+                fig.add_trace(
+                    go.Scatter(
+                        x=df.index,
+                        y=df['MA_short'],
+                        name=f'短期平均({short_ma}日)',
+                        line=dict(color='orange', width=2)
+                    ),
+                    row=1, col=1
+                )
+                fig.add_trace(
+                    go.Scatter(
+                        x=df.index,
+                        y=df['MA_long'],
+                        name=f'長期平均({long_ma}日)',
+                        line=dict(color='blue', width=2)
+                    ),
+                    row=1, col=1
+                )
+
+                # ボリンジャーバンド
+                fig.add_trace(
+                    go.Scatter(
+                        x=df.index,
+                        y=df['BB_upper'],
+                        name='上限ライン',
+                        line=dict(color='gray', dash='dash', width=1)
+                    ),
+                    row=1, col=1
+                )
+                fig.add_trace(
+                    go.Scatter(
+                        x=df.index,
+                        y=df['BB_lower'],
+                        name='下限ライン',
+                        line=dict(color='gray', dash='dash', width=1)
+                    ),
+                    row=1, col=1
+                )
+
+                # 売買シグナル
+                buy_signals = df.index[signals['signal'] == 1]
+                sell_signals = df.index[signals['signal'] == -1]
+
+                if len(buy_signals) > 0:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=buy_signals,
+                            y=df.loc[buy_signals, 'Low'] * 0.98,
+                            mode='markers',
+                            name='🟢買いサイン',
+                            marker=dict(symbol='triangle-up', size=12, color='green')
+                        ),
+                        row=1, col=1
+                    )
+
+                if len(sell_signals) > 0:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=sell_signals,
+                            y=df.loc[sell_signals, 'High'] * 1.02,
+                            mode='markers',
+                            name='🔴売りサイン',
+                            marker=dict(symbol='triangle-down', size=12, color='red')
+                        ),
+                        row=1, col=1
+                    )
+
+                # RSI
+                fig.add_trace(
+                    go.Scatter(
+                        x=df.index,
+                        y=df['RSI'],
+                        name='RSI',
+                        line=dict(color='purple', width=2)
+                    ),
+                    row=2, col=1
+                )
+                fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
+                fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
+
+                # MACD
+                fig.add_trace(
+                    go.Scatter(
+                        x=df.index,
+                        y=df['MACD'],
+                        name='MACD',
+                        line=dict(color='blue', width=2)
+                    ),
+                    row=3, col=1
+                )
+                fig.add_trace(
+                    go.Scatter(
+                        x=df.index,
+                        y=df['MACD_signal'],
+                        name='シグナル',
+                        line=dict(color='red', width=2)
+                    ),
+                    row=3, col=1
+                )
+
+                # レイアウト設定
+                fig.update_layout(
+                    title=f"{stock_code} の分析チャート（学習用）",
+                    height=600,
+                    xaxis_rangeslider_visible=False,
+                    showlegend=False,
+                    margin=dict(l=10, r=10, t=50, b=10)
+                )
+
+                fig.update_yaxes(title_text="株価", row=1, col=1)
+                fig.update_yaxes(title_text="RSI", row=2, col=1)
+                fig.update_yaxes(title_text="MACD", row=3, col=1)
+
+                st.plotly_chart(fig, use_container_width=True)
+                
+            except Exception as e:
+                st.error(f"❌ チャート表示エラー: {e}")
+
+        # --- バックテスト結果 ---
+        with st.expander("💰 投資シミュレーション結果"):
+            st.markdown("""
+            <div class="explanation-box">
+            <strong>🎮 シミュレーションって何？</strong><br>
+            <span>「もし過去にこのルールで投資していたら、お金はどうなっていた？」を計算しました。</span><br>
+            <span><strong>重要：</strong> 実際のお金は使っていません！学習用のシミュレーションです。</span><br>
+            <span><strong>注意：</strong> 過去の結果と将来の結果は全く別のものです。</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            try:
+                total_return_pct = (portfolio_bt['Total'].iloc[-1] / initial_capital - 1) * 100
+                returns = portfolio_bt['Returns'].dropna()
+                sharpe_ratio = (returns.mean() / returns.std()) * np.sqrt(252) if returns.std() > 0 else 0
+                max_drawdown = (portfolio_bt['Total'] / portfolio_bt['Total'].cummax() - 1).min() * 100
+
+                # パフォーマンス指標
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric(
+                        "💵 最終的なお金（仮想）",
+                        f"¥{portfolio_bt['Total'].iloc[-1]:,.0f}",
+                        delta=f"¥{portfolio_bt['Total'].iloc[-1] - initial_capital:,.0f}"
+                    )
+                    st.metric(
+                        "📉 最大の落ち込み",
+                        f"{max_drawdown:.2f}%"
+                    )
+                with col2:
+                    st.metric(
+                        "📈 全体の成果",
+                        f"{total_return_pct:.2f}%"
+                    )
+                    st.metric(
+                        "⚡ リスク調整後の成果",
+                        f"{sharpe_ratio:.2f}"
+                    )
+
+                # 成績判定（初心者向け解説）
+                if total_return_pct > 10:
+                    st.success("🎉 **素晴らしい成績！** このストラテジーだと年率10%以上のリターンでした！")
+                    st.info("💡 でも過去の結果なので、将来も同じとは限りません")
+                elif total_return_pct > 0:
+                    st.info("👍 **まずまずの成績** 利益は出ていました！")
+                    st.info("💡 投資では「プラス」になるだけでも良い結果です")
+                else:
+                    st.warning("📚 **改善が必要** このストラテジーだと損失が出ていました")
+                    st.info("💡 設定を変えてみると結果が変わるかもしれません")
+
+                # 分かりやすい説明
+                st.markdown("""
+                <div class="tip-box">
+                <strong>🤔 結果の見方</strong><br>
+                <span><strong>最終的なお金：</strong> 最初のお金がいくらになったか</span><br>
+                <span><strong>全体の成果：</strong> 何%増えた（減った）か</span><br>
+                <span><strong>最大の落ち込み：</strong> 一番調子が悪い時にどのくらい減ったか</span><br>
+                <span><strong>リスク調整後の成果：</strong> リスクを考慮した成績（1.0以上なら優秀）</span><br>
+                <span><strong>⚠️ 注意：</strong> これは過去のデータによる仮想的な結果です</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # 資産推移グラフ（シンプル版）
+                st.markdown("#### 📈 お金の変化（仮想）")
+                try:
+                    fig_portfolio = go.Figure()
+                    fig_portfolio.add_trace(
+                        go.Scatter(
+                            x=portfolio_bt.index,
+                            y=portfolio_bt['Total'],
+                            mode='lines',
+                            fill='tonexty',
+                            name='お金の変化',
+                            line=dict(color='green', width=3)
+                        )
+                    )
+                    fig_portfolio.add_hline(
+                        y=initial_capital,
+                        line_dash="dash",
+                        line_color="red",
+                        annotation_text="最初のお金"
+                    )
+                    fig_portfolio.update_layout(
+                        height=300,
+                        showlegend=False,
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        title="時間とともにお金がどう変化したか（学習用シミュレーション）"
+                    )
+                    st.plotly_chart(fig_portfolio, use_container_width=True)
+                except Exception as e:
+                    st.error(f"❌ グラフ表示エラー: {e}")
+                    
+            except Exception as e:
+                st.error(f"❌ バックテスト結果表示エラー: {e}")
+
+        # --- 企業情報 ---
+        with st.expander("🏢 この会社について"):
+            st.markdown("""
+            <div class="explanation-box">
+            <strong>🏪 会社情報の見方</strong><br>
+            <span>投資する前に、その会社がどんな会社なのか知ることが大切です！</span><br>
+            <span><strong>注意：</strong> 情報の正確性は保証されません。投資前には公式情報をご確認ください。</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if info:
+                try:
+                    # 基本情報
+                    if info.get('longBusinessSummary'):
+                        st.markdown("#### 📝 この会社は何をしている？")
+                        summary = info.get('longBusinessSummary', '')
+                        if len(summary) > 200:
+                            summary = summary[:200] + "..."
+                        st.write(summary)
+
+                    # 財務指標（初心者向け解説付き）
+                    st.markdown("#### 💼 会社の通信簿")
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        per = info.get('trailingPE', 'N/A')
+                        if per != 'N/A' and isinstance(per, (int, float)):
+                            if per < 15:
+                                per_status = "安い😊"
+                            elif per > 25:
+                                per_status = "高い😰"
+                            else:
+                                per_status = "普通😐"
+                            st.metric("PER（株価の高さ）", f"{per:.1f}", delta=per_status)
+                            st.markdown("""
+                            <div class="tip-box">
+                            💡 <strong>PERって何？</strong><br>
+                            <span>株価が会社の利益に比べて高いか安いかを表す数字</span><br>
+                            <span>15以下＝安い、25以上＝高い</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.metric("PER（株価の高さ）", "データなし")
+
+                        sector = info.get('sector', 'N/A')
+                        st.metric("業種", sector)
+
+                    with col2:
+                        pbr = info.get('priceToBook', 'N/A')
+                        if pbr != 'N/A' and isinstance(pbr, (int, float)):
+                            if pbr < 1.0:
+                                pbr_status = "安い😊"
+                            elif pbr > 3.0:
+                                pbr_status = "高い😰"
+                            else:
+                                pbr_status = "普通😐"
+                            st.metric("PBR（資産価値との比較）", f"{pbr:.1f}", delta=pbr_status)
+                            st.markdown("""
+                            <div class="tip-box">
+                            💡 <strong>PBRって何？</strong><br>
+                            <span>株価が会社の資産に比べて高いか安いかを表す数字</span><br>
+                            <span>1.0以下＝安い、3.0以上＝高い</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.metric("PBR（資産価値との比較）", "データなし")
+
+                        div_yield = info.get('dividendYield', 0)
+                        if div_yield and isinstance(div_yield, (int, float)):
+                            st.metric("配当利回り（お小遣い）", f"{div_yield * 100:.2f}%")
+                            st.markdown("""
+                            <div class="tip-box">
+                            💡 <strong>配当って何？</strong><br>
+                            <span>会社が株主にくれる「お小遣い」</span><br>
+                            <span>3%以上あれば結構良い</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.metric("配当利回り（お小遣い）", "なし")
+
+                    # 52週高安値
+                    st.markdown("#### 📊 この1年の最高値・最安値")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        high_52 = info.get('fiftyTwoWeekHigh', 'N/A')
+                        if high_52 != 'N/A' and isinstance(high_52, (int, float)):
+                            st.metric("1年で一番高かった時", f"{high_52:,.2f} {currency}")
+                        else:
+                            st.metric("1年で一番高かった時", "データなし")
+                    with col2:
+                        low_52 = info.get('fiftyTwoWeekLow', 'N/A')
+                        if low_52 != 'N/A' and isinstance(low_52, (int, float)):
+                            st.metric("1年で一番安かった時", f"{low_52:,.2f} {currency}")
+                        else:
+                            st.metric("1年で一番安かった時", "データなし")
+                    
+                    st.markdown("""
+                    <div class="tip-box">
+                    💡 <span>今の株価が最高値に近いか最安値に近いかで、購入タイミングの参考にできます</span><br>
+                    <span><strong>注意：</strong> これだけで判断せず、複数の要因を考慮しましょう</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                except Exception as e:
+                    st.error(f"❌ 企業情報表示エラー: {e}")
+            else:
+                st.warning("❌ 会社の詳しい情報を取得できませんでした")
+                
+    except Exception as e:
+        logger.error(f"分析処理エラー: {e}")
+        st.error(f"❌ 分析処理中にエラーが発生しました: {str(e)}")
+
+else:
+    st.error("""
+    ❌ **データを取得できませんでした**
+
+    以下を確認してください：
+    - 会社のコード（記号）が正しいか
+    - インターネットに接続されているか
+    - 株式市場が開いているか（平日の昼間）
+    - サーバーが正常に動作しているか
     
-    #### 🚀 初心者向けスタートガイド
-    1. **少額から始める**: 余裕資金で実践
-    2. **知っている会社から**: 身近な企業を選ぶ
-    3. **基本を学ぶ**: 企業分析の基礎を身につける
-    4. **感情をコントロール**: 冷静な判断を心がける
-    
-    #### 💡 銘柄選択のコツ
-    - **成長性**: 将来の事業拡大が期待できるか
-    - **安定性**: 業績が安定しているか
-    - **割安性**: 現在の株価は適正か
-    
-    #### 📱 このアプリの活用方法
-    1. **検索機能**: 気になる企業を検索
-    2. **AI判断**: 投資タイミングの参考に
-    3. **バックテスト**: 投資戦略の検証
-    4. **ポートフォリオ**: 保有銘柄の管理
-    
-    #### ⚠️ 注意事項
-    - このアプリは教育目的です
-    - 投資判断は自己責任で行ってください
-    - リスクを理解した上で投資してください
+    しばらく時間をおいてから再試行してください。
     """)
 ```
 
-if **name** == “**main**”:
-main()
+# — 使い方ガイド —
+
+with st.expander(“📱 使い方ガイド（困った時はここを見て）”):
+st.markdown(”””
+### 📖 このアプリの使い方
+
+```
+**🎯 基本的な流れ**
+1. 📈 **会社を選ぶ** → 気になる会社の株価を調べる
+2. ⚙️ **設定する** → 分析の期間や条件を決める
+3. 🚀 **分析開始** → ボタンを押して分析する
+4. 📊 **結果を見る** → テクニカル分析の結果を確認する
+5. 💼 **保存する** → 気に入った会社をリストに保存
+
+**📊 結果の見方**
+
+**テクニカル分析結果**
+- 🟢 = 買いサイン検出（上昇の可能性）
+- 🔴 = 売りサイン検出（下降の可能性）
+- ⚪ = 中立（明確なサインなし）
+
+**チャートの見方**
+- 🟢のローソク = その日は株価が上がった
+- 🔴のローソク = その日は株価が下がった
+- 🧡の線 = 短期移動平均（最近の平均）
+- 🔵の線 = 長期移動平均（長期の平均）
+- 🟢▲ = 買いサイン
+- 🔴▼ = 売りサイン
+
+**指標の説明**
+
+**RSI（買われすぎ・売られすぎ）**
+- 70以上 = みんなが買いすぎ（下がるかも）
+- 30以下 = みんなが売りすぎ（上がるかも）
+- 50付近 = 普通の状態
+
+**移動平均**
+- 短期 > 長期 = 上昇トレンド（調子が良い）
+- 短期 < 長期 = 下降トレンド（調子が悪い）
+
+**バックテスト**
+「もし過去にこのルールで投資していたら？」をシミュレーション
+- でも過去の結果なので、将来も同じとは限りません！
+
+**ポートフォリオ機能**
+- 気になる会社をリストに保存できます
+- 後で値段の変化を確認できます
+- 「お気に入りリスト」みたいなものです
+
+**⚠️ とっても大切なこと**
+- ⚠️ このアプリは教育・学習目的です
+- ⚠️ 投資助言ではありません
+- ⚠️ 実際にお金を使う時は、専門家と相談しましょう
+- ⚠️ テクニカル分析は100%正しくありません
+- ⚠️ 過去の結果と将来の結果は全く別のものです
+- ⚠️ 複数の情報源を確認してから判断しましょう
+
+### 💡 投資の基本ルール
+- 📚 **勉強する** → 分からないことは調べる
+- 💰 **余裕資金で** → なくなっても大丈夫なお金だけ使う
+- 🎯 **分散投資** → 1つの会社だけじゃなく、色々な会社に投資
+- 🛡️ **損切りルール** → 下がりすぎたら売る勇気
+- 😌 **感情的にならない** → 慌てて売ったり買ったりしない
+- 📈 **長期目線** → 短期間で大儲けしようと思わない
+
+### 🤔 よくある質問
+
+**Q: 株って危険じゃないの？**
+A: リスクはありますが、正しく勉強すれば理解できます。まずは少額から始めましょう。
+
+**Q: いくらから始められるの？**
+A: 今は1株から買える証券会社もあります。数百円から始められます。
+
+**Q: どの会社の株を買えばいいの？**
+A: 自分がよく知っている会社から始めるのがおすすめです。
+
+**Q: いつ売ればいいの？**
+A: 最初に「これくらい上がったら売る」「これくらい下がったら売る」を決めておきましょう。
+
+**Q: 毎日チェックした方がいいの？**
+A: 毎日見すぎると心配になります。週1回くらいで十分です。
+
+**Q: この分析結果は信頼できるの？**
+A: 参考情報として使ってください。複数の情報源と組み合わせて学習に活用しましょう。
+""")
+```
+
+# — フッター —
+
+st.markdown(”—”)
+st.markdown(”””
+
+<div style='text-align: center; color: #666; padding: 1rem;'>
+    📱 初心者向け株価分析アプリ（教育目的）<br>
+    <small>🔰 投資の勉強用 - これは投資助言ではありません</small><br>
+    <small>💡 分からないことがあったら「使い方ガイド」を見てください</small><br>
+    <small>⚠️ 実際の投資は専門家にご相談ください</small>
+</div>
+""", unsafe_allow_html=True)
