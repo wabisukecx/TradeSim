@@ -167,7 +167,7 @@ st.markdown("""
 st.markdown("""
 <div class="main-header">
     <h1>📱 株価分析アプリ</h1>
-    <p>🔰 初心者・中学生でも分かる投資分析</p>
+    <p>🔰 初心者でも分かる投資分析</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1190,7 +1190,7 @@ if st.button("🚀 分析開始", type="primary", use_container_width=True):
                     f"{sharpe_ratio:.2f}"
                 )
 
-            # 成績判定（中学生向け解説）
+            # 成績判定（初心者向け解説）
             if total_return_pct > 10:
                 st.success("🎉 **素晴らしい成績！** この方法だと年率10%以上儲かっていました！")
                 st.info("💡 でも過去の結果なので、将来も同じとは限りません")
@@ -1257,7 +1257,7 @@ if st.button("🚀 分析開始", type="primary", use_container_width=True):
                         summary = summary[:200] + "..."
                     st.write(summary)
 
-                # 財務指標（中学生向け解説付き）
+                # 財務指標（初心者向け解説付き）
                 st.markdown("#### 💼 会社の通信簿")
 
                 col1, col2 = st.columns(2)
@@ -1428,7 +1428,7 @@ with st.expander("📱 使い方ガイド（困った時はここを見て）"):
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 1rem;'>
-    📱 中学生でも分かる株価分析アプリ<br>
+    📱 初心者でも分かる株価分析アプリ<br>
     <small>🔰 投資の勉強用 - 実際の投資は大人と相談してね！</small><br>
     <small>💡 分からないことがあったら「使い方ガイド」を見てください</small>
 </div>
