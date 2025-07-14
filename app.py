@@ -1322,10 +1322,16 @@ if st.button("🚀 分析開始", type="primary", use_container_width=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     high_52 = info.get('fiftyTwoWeekHigh', 'N/A')
-                    st.metric("1年で一番高かった時", f"¥{high_52}" if high_52 != 'N/A' else "データなし")
+                    if high_52 != 'N/A':
+                        st.metric("1年で一番高かった時", f"{high_52:,.2f} {currency}")
+                    else:
+                        st.metric("1年で一番高かった時", "データなし")
                 with col2:
                     low_52 = info.get('fiftyTwoWeekLow', 'N/A')
-                    st.metric("1年で一番安かった時", f"¥{low_52}" if low_52 != 'N/A' else "データなし")
+                    if low_52 != 'N/A':
+                        st.metric("1年で一番安かった時", f"{low_52:,.2f} {currency}")
+                    else:
+                        st.metric("1年で一番安かった時", "データなし")
                 
                 st.markdown("""
                 <div class="tip-box">
