@@ -1304,18 +1304,57 @@ if st.button("🚀 分析開始", type="primary", use_container_width=True):
                     else:
                         st.metric("PBR（資産価値との比較）", "データなし")
 
+                    # 【修正部分】配当利回りの計算
                     div_yield = info.get('dividendYield', 0)
-                    if div_yield:
-                        st.metric("配当利回り（お小遣い）", f"{div_yield * 100:.2f}%")
-                        st.markdown("""
-                        <div class="tip-box">
-                        💡 <strong>配当って何？</strong><br>
-                        <span>会社が株主にくれる「お小遣い」</span><br>
-                        <span>3%以上あれば結構良い</span>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.metric("配当利回り（お小遣い）", "なし")
+                    dividend_rate = info.get('dividendRate', 0)
+                    current_price_for_div = info.get('currentPrice', info.get('regularMarketPrice', 0))
+                    
+                    try:
+                        # まず、yfinanceのdividendYieldを使用
+                        if div_yield and div_yield > 0:
+                            div_yield_pct = div_yield * 100
+                            
+                            # 異常値チェック（50%を超える場合は異常値として扱う）
+                            if div_yield_pct > 50:
+                                # 代替計算：dividend_rate / current_price
+                                if dividend_rate and current_price_for_div and dividend_rate > 0 and current_price_for_div > 0:
+                                    calculated_yield = (dividend_rate / current_price_for_div) * 100
+                                    if calculated_yield <= 50:
+                                        st.metric("配当利回り（お小遣い）", f"{calculated_yield:.2f}%")
+                                    else:
+                                        st.metric("配当利回り（お小遣い）", "データ異常")
+                                        st.warning("⚠️ 配当データに異常があります")
+                                else:
+                                    st.metric("配当利回り（お小遣い）", "データ異常")
+                                    st.warning("⚠️ 配当データに異常があります")
+                            else:
+                                st.metric("配当利回り（お小遣い）", f"{div_yield_pct:.2f}%")
+                                st.markdown("""
+                                <div class="tip-box">
+                                💡 <strong>配当って何？</strong><br>
+                                <span>会社が株主にくれる「お小遣い」</span><br>
+                                <span>3%以上あれば結構良い</span>
+                                </div>
+                                """, unsafe_allow_html=True)
+                        else:
+                            # dividendYieldがない場合、dividend_rateから計算
+                            if dividend_rate and current_price_for_div and dividend_rate > 0 and current_price_for_div > 0:
+                                calculated_yield = (dividend_rate / current_price_for_div) * 100
+                                if calculated_yield <= 50:
+                                    st.metric("配当利回り（お小遣い）", f"{calculated_yield:.2f}%")
+                                    st.markdown("""
+                                    <div class="tip-box">
+                                    💡 <strong>配当って何？</strong><br>
+                                    <span>会社が株主にくれる「お小遣い」</span><br>
+                                    <span>3%以上あれば結構良い</span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                else:
+                                    st.metric("配当利回り（お小遣い）", "計算できません")
+                            else:
+                                st.metric("配当利回り（お小遣い）", "配当なし")
+                    except Exception as e:
+                        st.metric("配当利回り（お小遣い）", "データなし")
 
                 # 52週高安値
                 st.markdown("#### 📊 この1年の最高値・最安値")
