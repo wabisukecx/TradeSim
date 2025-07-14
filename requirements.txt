@@ -5,3 +5,4 @@ yfinance
 plotly
 ta
 scipy
+requests
