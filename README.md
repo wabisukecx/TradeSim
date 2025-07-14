@@ -579,9 +579,3 @@ pip install -r requirements.txt
 - 過去の成績は将来の結果を保証するものではありません
 - 実際の投資前には専門家にご相談ください
 
----
-
-**お問い合わせ**: 
-- 📧 Email: [your-email@example.com]
-- 🐙 GitHub: [https://github.com/your-username/TradeSim]
-- 📝 Issues: [https://github.com/your-username/TradeSim/issues]
