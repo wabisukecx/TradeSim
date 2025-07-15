@@ -1312,7 +1312,7 @@ if st.button("🚀 分析開始", type="primary", use_container_width=True):
                     try:
                         # まず、yfinanceのdividendYieldを使用
                         if div_yield and div_yield > 0:
-                            div_yield_pct = div_yield * 100
+                            div_yield_pct = div_yield
                             
                             # 異常値チェック（50%を超える場合は異常値として扱う）
                             if div_yield_pct > 50:
