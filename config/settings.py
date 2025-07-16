@@ -116,7 +116,6 @@ WARNING_MESSAGES = {
     'extreme_volatility': "⚠️ データに異常な価格変動が検出されました",
     'high_zero_volume': "⚠️ 出来高データに多くの0が含まれています",
     'insufficient_data': "⚠️ データが十分ではありません",
-    'api_key_recommended': "💡 より多くの検索結果を得るにはAPI Keyを設定してください"
 }
 
 # === 免責事項 ===
