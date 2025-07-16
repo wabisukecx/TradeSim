@@ -1,8 +1,15 @@
-streamlit
-pandas
-numpy
-yfinance
-plotly
-ta
-scipy
-requests
+# Core dependencies
+streamlit>=1.28.0
+pandas>=1.5.0
+numpy>=1.24.0
+yfinance>=0.2.18
+plotly>=5.15.0
+ta>=0.10.2
+scipy>=1.10.0
+requests>=2.31.0
+
+# Optional dependencies for enhanced features
+# Uncomment if needed
+# matplotlib>=3.7.0
+# seaborn>=0.12.0
+# openpyxl>=3.1.0
