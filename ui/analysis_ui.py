@@ -146,45 +146,67 @@ class AnalysisUI:
                 "これは教育目的のシミュレーションであり、実際の投資成果ではありません。"
             )
             
-            from analysis import BacktestEngine
-            backtest_engine = BacktestEngine()
-            performance = backtest_engine.get_performance_summary()
+            # ❌ 削除：新しいインスタンス作成
+            # from analysis import BacktestEngine
+            # backtest_engine = BacktestEngine()
+            # performance = backtest_engine.get_performance_summary()
             
-            if performance and performance['metrics']:
-                metrics = performance['metrics']
+            # ✅ 追加：analysis_dataから直接取得
+            portfolio_df = analysis_data.get('portfolio')
+            trade_log = analysis_data.get('trade_log')
+            params = analysis_data.get('parameters', {})
+            
+            # ✅ 修正：データの存在確認
+            if portfolio_df is not None and not portfolio_df.empty:
+                # 基本指標計算
+                initial_capital = params.get('initial_capital', 1000000)
+                final_value = portfolio_df['Total'].iloc[-1]
+                total_return_pct = (final_value / initial_capital - 1) * 100
+                total_return_abs = final_value - initial_capital
                 
+                # 詳細指標計算
+                returns = portfolio_df['Returns'].dropna()
+                max_drawdown = 0
+                sharpe_ratio = 0
+                
+                if len(returns) > 0:
+                    portfolio_values = portfolio_df['Total']
+                    peak = portfolio_values.expanding().max()
+                    drawdown = (portfolio_values / peak - 1) * 100
+                    max_drawdown = drawdown.min()
+                    
+                    sharpe_ratio = (returns.mean() / returns.std()) * (252 ** 0.5) if returns.std() > 0 else 0
+                
+                # ✅ 元のコードをそのまま使用
                 # パフォーマンス指標
                 col1, col2 = st.columns(2)
                 with col1:
                     st.metric(
                         "💵 仮想最終資産",
-                        f"¥{metrics.get('final_value', 0):,.0f}",
-                        delta=f"¥{metrics.get('total_return_abs', 0):,.0f}"
+                        f"¥{final_value:,.0f}",
+                        delta=f"¥{total_return_abs:,.0f}"
                     )
                     st.metric(
                         "📉 最大下落幅",
-                        f"{metrics.get('max_drawdown', 0):.2f}%"
+                        f"{max_drawdown:.2f}%"
                     )
                 with col2:
                     st.metric(
                         "📈 総リターン",
-                        f"{metrics.get('total_return_pct', 0):.2f}%"
+                        f"{total_return_pct:.2f}%"
                     )
                     st.metric(
                         "⚡ シャープレシオ",
-                        f"{metrics.get('sharpe_ratio', 0):.2f}"
+                        f"{sharpe_ratio:.2f}"
                     )
                 
                 # 成績判定
-                grade = performance['performance_grade']
-                comment = performance['performance_comment']
-                
-                if "優秀" in grade:
-                    st.success(f"{grade} {comment}")
-                elif "良好" in grade:
-                    st.info(f"{grade} {comment}")
+                if total_return_pct > 10.0:
+                    st.success("🎉 優秀 素晴らしい成績です！")
+                elif total_return_pct > 0.0:
+                    st.info("👍 良好 まずまずの成績です")
                 else:
-                    st.warning(f"{grade} {comment}")
+                    st.warning("📚 要改善 改善が必要です")
                 
                 # 結果の見方説明
                 UIComponents.render_tip_box(
@@ -198,10 +220,14 @@ class AnalysisUI:
                 # 資産推移グラフ
                 st.markdown("#### 📈 仮想資産の推移")
                 portfolio_fig = self.chart_generator.create_portfolio_chart(
-                    analysis_data['portfolio'], 
-                    analysis_data['parameters']['initial_capital']
+                    portfolio_df, 
+                    initial_capital
                 )
                 st.plotly_chart(portfolio_fig, use_container_width=True)
+                
+            else:
+                st.warning("⚠️ バックテストデータが利用できません")
+                st.info("💡 「🚀 分析開始」ボタンで分析を実行してください")
     
     def _render_company_info(self, analysis_data: Dict[str, Any]):
         """企業情報を表示"""

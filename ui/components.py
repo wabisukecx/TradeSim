@@ -1,4 +1,4 @@
-# ui/components.py - 改善版（人気銘柄選択削除）
+# ui/components.py - 完全版（通貨単位修正版）
 """
 UIコンポーネント機能 - Enter実行対応版
 """
@@ -537,14 +537,26 @@ class UIComponents:
     
     @staticmethod
     def render_metrics(current_price: float, info: Dict[str, Any], df: pd.DataFrame):
-        """主要指標を表示"""
+        """主要指標を表示（通貨単位修正版）"""
         col1, col2 = st.columns(2)
         
         with col1:
-            currency = info.get('currency', '')
+            # ✅ 通貨情報を取得
+            currency = info.get('currency', 'USD')
+            if currency == 'JPY':
+                currency_symbol = '¥'
+            elif currency == 'USD':
+                currency_symbol = '$'
+            elif currency == 'EUR':
+                currency_symbol = '€'
+            elif currency == 'GBP':
+                currency_symbol = '£'
+            else:
+                currency_symbol = f'{currency} '
+            
             st.metric(
                 "💰 現在の株価",
-                f"{current_price:,.2f} {currency}"
+                f"{currency_symbol}{current_price:,.2f}"
             )
             
             volume = df['Volume'].iloc[-1]
@@ -558,10 +570,12 @@ class UIComponents:
                 prev_price = df['Close'].iloc[-2]
                 change_pct = (current_price / prev_price - 1) * 100
                 change_val = current_price - prev_price
+                
+                # ✅ 通貨単位を明示した価格差表示
                 st.metric(
                     "📈 前日からの変化",
                     f"{change_pct:.2f}%",
-                    delta=f"{change_val:.2f}"
+                    delta=f"{currency_symbol}{change_val:.2f}"  # 通貨単位を追加
                 )
             
             rsi_current = df['RSI'].iloc[-1]
