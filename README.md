@@ -13,7 +13,7 @@
 ### 🔍 インテリジェント銘柄検索
 
 - **多言語対応検索**: 日本語・英語での会社名検索（「トヨタ」「Apple」「任天堂」等）
-- **人気銘柄選択**: よく投資される主要銘柄からの簡単選択
+- **直接入力対応**: 銘柄コード直接入力（Enter キー対応）
 - **Alpha Vantage API統合**: より広範囲の銘柄検索（API Key使用時）
 - **自動銘柄コード変換**: 会社名から銘柄コードへの自動変換
 
@@ -82,11 +82,51 @@ streamlit run app.py
 
 ### 基本的な使用方法
 
-1. **銘柄選択**: 会社名検索、人気銘柄選択、またはコード直接入力
+1. **銘柄選択**: 会社名検索、または銘柄コード直接入力
 2. **期間設定**: 分析期間を1ヶ月〜2年から選択
-3. **分析実行**: 「🚀 分析開始」ボタンをクリック
+3. **分析実行**: 「🚀 分析開始」ボタンをクリック、またはEnterキー
 4. **結果確認**: AI判断、チャート、シミュレーション結果を確認
 5. **ポートフォリオ管理**: 気になる銘柄をお気に入りリストに保存
+
+---
+
+## 🏗️ プロジェクト構造
+
+```
+TradeSim/
+├── app.py                      # メインアプリケーション
+├── requirements.txt            # 依存関係
+├── README.md                   # このファイル
+├── config/                     # 設定管理
+│   ├── __init__.py
+│   └── settings.py
+├── core/                       # アプリケーションコア
+│   ├── __init__.py
+│   ├── app_controller.py      # メイン業務ロジック
+│   └── state_manager.py       # セッション状態管理
+├── data/                       # データ取得・管理
+│   ├── __init__.py
+│   ├── stock_fetcher.py       # 株価データ取得
+│   ├── validators.py          # データ検証
+│   └── cache_manager.py       # キャッシュ管理
+├── analysis/                   # 分析エンジン
+│   ├── __init__.py
+│   ├── technical.py           # テクニカル分析
+│   ├── signals.py             # シグナル生成
+│   └── backtest.py            # バックテスト
+├── ui/                         # ユーザーインターフェース
+│   ├── __init__.py
+│   ├── components.py          # UIコンポーネント
+│   ├── styles.py              # スタイル・CSS管理
+│   ├── charts.py              # チャート生成
+│   ├── settings_ui.py         # 設定UI
+│   ├── analysis_ui.py         # 分析結果UI
+│   ├── portfolio_ui.py        # ポートフォリオUI
+│   └── guide_ui.py            # ガイドUI
+└── portfolio/                  # ポートフォリオ管理
+    ├── __init__.py
+    └── manager.py
+```
 
 ---
 
@@ -513,6 +553,7 @@ for key in st.session_state.keys():
 - ✅ ポートフォリオ管理
 - ✅ モバイル最適化
 - ✅ 教育的コンテンツ
+- ✅ Enter キー対応
 
 ---
 
@@ -543,10 +584,10 @@ pip install -r requirements.txt
 
 | 機能タイプ | 必要な変更 |
 |-----------|-----------|
-| **新しいテクニカル指標** | calculate_indicators()関数拡張 |
-| **新しい銘柄市場** | LocalStockSearch辞書追加 |
-| **新しいUI要素** | Streamlitコンポーネント追加 |
-| **新しい分析機能** | 新規関数作成 + UI統合 |
+| **新しいテクニカル指標** | analysis/technical.py の拡張 |
+| **新しい銘柄市場** | data/stock_fetcher.py の辞書追加 |
+| **新しいUI要素** | ui/ 内の適切なファイルに追加 |
+| **新しい分析機能** | analysis/ 内に新規モジュール作成 |
 
 ---
 
