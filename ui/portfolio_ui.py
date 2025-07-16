@@ -20,7 +20,7 @@ class PortfolioUI:
     def render_portfolio_section(self):
         """ポートフォリオ管理セクションを表示"""
         st.markdown("---")
-        st.markdown("## 💼 学習用ウォッチリスト（お気に入りリスト）")
+        st.markdown("## 💼 ウォッチリスト")
         
         UIComponents.render_explanation_box(
             "📂 ウォッチリストって何？",
@@ -65,13 +65,18 @@ class PortfolioUI:
             current_data = st.session_state.portfolio[st.session_state.current_stock_code]
             st.info(f"✅ すでにリストに追加済み: {current_data['shares']}株 (平均価格: ¥{current_data['avg_price']:.2f})")
         
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            quick_shares = st.number_input("仮想株数", min_value=1, value=10, step=1, key="quick_shares")
-        with col2:
-            button_text = "株数を追加" if already_in_portfolio else "リストに追加"
-            if st.button(button_text, key="quick_add_current", use_container_width=True):
-                self._add_current_stock_to_portfolio(quick_shares)
+        quick_shares = st.number_input(
+            "仮想株数",
+            min_value=1,
+            value=10,
+            step=1,
+            key="quick_shares"
+        )
+
+        # ボタンも下にそのまま配置
+        button_text = "株数を追加" if already_in_portfolio else "リストに追加"
+        if st.button(button_text, key="quick_add_current", use_container_width=True):
+            self._add_current_stock_to_portfolio(quick_shares)
     
     def _add_current_stock_to_portfolio(self, shares: int):
         """現在の銘柄をポートフォリオに追加"""

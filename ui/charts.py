@@ -515,22 +515,3 @@ class ChartGenerator:
         """
         # チャート表示
         st.plotly_chart(fig, use_container_width=True, key=f"chart_{chart_key}")
-        
-        # チャートコントロール
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if st.button("📥 チャートをダウンロード", key=f"download_{chart_key}"):
-                st.info("チャート上で右クリック → 'Download plot as a png' を選択してください")
-        
-        with col2:
-            zoom_options = ["全期間", "直近30日", "直近90日"]
-            selected_zoom = st.selectbox("🔍 表示期間", zoom_options, key=f"zoom_{chart_key}")
-            
-            if selected_zoom != "全期間":
-                days = 30 if selected_zoom == "直近30日" else 90
-                st.info(f"直近{days}日間にズームしてください（チャート上でドラッグ）")
-        
-        with col3:
-            if st.button("🔄 チャートをリセット", key=f"reset_{chart_key}"):
-                st.rerun()

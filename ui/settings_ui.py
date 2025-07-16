@@ -140,21 +140,8 @@ class SettingsUI:
                         StateManager.trigger_auto_run()
                 else:
                     st.warning(f"⚠️ {message}")
-        
-        # 銘柄コード例の表示
-        self._render_symbol_examples_simple()
-        
         return stock_code
-    
-    def _render_symbol_examples_simple(self):
-        """銘柄コード例を表示（簡易版）"""
-        UIComponents.render_tip_box(
-            "⚡ 使い方と例",
-            "💡 銘柄コードを入力してEnterを押すと使用できます<br>" +
-            "🇯🇵 **日本株:** 7203.T (トヨタ), 6758.T (ソニー), 7974.T (任天堂)<br>" +
-            "🇺🇸 **米国株:** AAPL (Apple), MSFT (Microsoft), TSLA (Tesla)"
-        )
-    
+        
     def _render_advanced_settings_section(self) -> Tuple[Dict[str, int], Dict[str, float]]:
         """詳細設定セクション"""
         with st.expander("🔧 詳細設定（上級者向け）", expanded=False):
