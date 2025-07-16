@@ -82,7 +82,7 @@ def render_analysis_buttons(stock_code: str, analysis_params: dict):
     st.markdown("---")
     
     # ボタンエリア
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2 = st.columns([1, 1])
     
     with col1:
         manual_run = st.button(
@@ -96,12 +96,6 @@ def render_analysis_buttons(stock_code: str, analysis_params: dict):
         if st.button("🔄 リセット", help="設定をリセットします"):
             StateManager.reset_application_state()
             st.success("✅ 設定をリセットしました")
-            st.rerun()
-    
-    with col3:
-        if st.button("📊 サンプル実行", help="Apple(AAPL)でサンプル分析"):
-            StateManager.set_direct_input("AAPL")
-            StateManager.trigger_auto_run()
             st.rerun()
     
     # 分析実行判定
