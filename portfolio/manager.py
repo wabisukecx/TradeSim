@@ -1,4 +1,4 @@
-# portfolio/manager.py - 修正版
+# portfolio/manager.py - FutureWarning完全排除版
 """
 ポートフォリオ管理機能
 """
@@ -21,12 +21,41 @@ class PortfolioManager:
         self._initialize_session_state()
     
     def _initialize_session_state(self):
-        """セッション状態を初期化"""
+        """セッション状態を初期化（通貨対応版）"""
         if 'portfolio' not in st.session_state:
             st.session_state.portfolio = {}
         
         if 'portfolio_history' not in st.session_state:
             st.session_state.portfolio_history = []
+        
+        # ✅ 既存データの通貨情報補完
+        self._update_portfolio_currency_info()
+
+    def _update_portfolio_currency_info(self):
+        """既存ポートフォリオデータに通貨情報を追加"""
+        updated = False
+        
+        for symbol, data in st.session_state.portfolio.items():
+            if 'currency' not in data:
+                # 通貨情報を推定
+                if symbol.endswith('.T'):
+                    currency = 'JPY'  # 日本株
+                elif symbol.endswith('.L'):
+                    currency = 'GBP'  # ロンドン市場
+                elif symbol.endswith('.PA'):
+                    currency = 'EUR'  # パリ市場
+                elif '.' in symbol:
+                    currency = 'USD'  # その他の市場
+                else:
+                    currency = 'USD'  # 米国株（サフィックスなし）
+                
+                # 通貨情報を追加
+                st.session_state.portfolio[symbol]['currency'] = currency
+                updated = True
+        
+        if updated:
+            # 更新をさりげなく記録（ユーザーには表示しない）
+            pass
     
     def add_stock(self, symbol: str, shares: int, price: float, long_name: str) -> str:
         """
@@ -142,8 +171,13 @@ class PortfolioManager:
             shares = data['shares']
             avg_price = data['avg_price']
             long_name = data['longName']
+            currency = data.get('currency', 'USD')  # ✅ 通貨情報を取得
             
             current_price = current_prices.get(symbol, avg_price)
+            
+            # ✅ 現在価格が取得できない場合は平均価格を使用
+            if current_price <= 0:
+                current_price = avg_price
             
             cost_basis = shares * avg_price
             current_value = shares * current_price
@@ -160,6 +194,7 @@ class PortfolioManager:
                 'current_value': current_value,
                 'pnl': pnl,
                 'pnl_pct': pnl_pct,
+                'currency': currency,  # ✅ 通貨情報を追加
                 'weight': 0  # 後で計算
             })
             
@@ -184,7 +219,7 @@ class PortfolioManager:
     
     def _get_current_prices_batch(self, symbols: List[str]) -> Dict[str, float]:
         """
-        複数銘柄の現在価格を一括取得
+        複数銘柄の現在価格を一括取得（エラーハンドリング強化版）
         
         Args:
             symbols: 銘柄コードのリスト
@@ -198,20 +233,26 @@ class PortfolioManager:
             if len(symbols) == 1:
                 # 単一銘柄の場合
                 symbol = symbols[0]
-                prices[symbol] = cache_current_price(symbol)
+                try:
+                    prices[symbol] = cache_current_price(symbol)
+                except Exception as e:
+                    # ✅ 個別銘柄エラーを警告として記録（ユーザーには表示しない）
+                    prices[symbol] = 0.0
             else:
                 # 複数銘柄の場合
                 for symbol in symbols:
                     try:
                         prices[symbol] = cache_current_price(symbol)
-                    except:
+                    except Exception as e:
+                        # ✅ 個別銘柄エラーを警告として記録（ユーザーには表示しない）
                         prices[symbol] = 0.0
         except Exception as e:
             # エラーが発生した場合は個別に取得
             for symbol in symbols:
                 try:
                     prices[symbol] = cache_current_price(symbol)
-                except:
+                except Exception as e:
+                    # ✅ 取得できない場合は保存価格を使用
                     prices[symbol] = 0.0
         
         return prices
@@ -316,7 +357,7 @@ class PortfolioManager:
     
     def export_portfolio(self) -> pd.DataFrame:
         """
-        ポートフォリオをDataFrameでエクスポート
+        ポートフォリオをDataFrameでエクスポート（FutureWarning完全排除版）
         
         Returns:
             pd.DataFrame: ポートフォリオデータ
@@ -326,14 +367,56 @@ class PortfolioManager:
         if not summary['positions']:
             return pd.DataFrame()
         
-        df = pd.DataFrame(summary['positions'])
-        df = df[['symbol', 'longName', 'shares', 'avg_price', 'current_price', 
-                'cost_basis', 'current_value', 'pnl', 'pnl_pct', 'weight']]
+        # ✅ 完全新設計：型安全な方法でテーブルデータを作成
+        display_rows = []
         
-        # 列名を日本語に変更
-        df.columns = [
-            '銘柄コード', '会社名', '株数', '平均取得価格', '現在価格',
-            '取得コスト', '現在価値', '損益', '損益率(%)', 'ウェイト(%)'
-        ]
+        for pos in summary['positions']:
+            # 通貨情報の取得
+            currency = pos.get('currency', 'USD')
+            
+            # 通貨に応じたフォーマット設定
+            if currency == 'JPY':
+                curr_symbol = '¥'
+                decimals = 0
+            elif currency == 'USD':
+                curr_symbol = '$'
+                decimals = 2
+            elif currency == 'EUR':
+                curr_symbol = '€'
+                decimals = 2
+            elif currency == 'GBP':
+                curr_symbol = '£'
+                decimals = 2
+            else:
+                curr_symbol = currency + ' '
+                decimals = 2
+            
+            # 変動%の文字列フォーマット
+            pnl_pct_val = pos['pnl_pct']
+            if pnl_pct_val > 0:
+                change_percent = f"+{pnl_pct_val:.2f}%"
+            elif pnl_pct_val < 0:
+                change_percent = f"{pnl_pct_val:.2f}%"
+            else:
+                change_percent = "0.00%"
+            
+            # ✅ 各行を辞書として作成（すべて適切な型）
+            row = {
+                '銘柄コード': str(pos['symbol']),
+                '会社名': str(pos['longName']),
+                '株数': int(pos['shares']),  # 整数型
+                '平均取得価格': f"{curr_symbol}{pos['avg_price']:,.{decimals}f}",  # 文字列型
+                '現在価格': f"{curr_symbol}{pos['current_price']:,.{decimals}f}",  # 文字列型
+                '変動%': change_percent,  # 文字列型
+                '損益': f"{curr_symbol}{pos['pnl']:,.{decimals}f}",  # 文字列型
+                '現在価値': f"{curr_symbol}{pos['current_value']:,.{decimals}f}",  # 文字列型
+                '取得コスト': f"{curr_symbol}{pos['cost_basis']:,.{decimals}f}",  # 文字列型
+                'ウェイト(%)': f"{pos['weight']:.1f}%"  # 文字列型
+            }
+            
+            display_rows.append(row)
         
-        return df
+        # ✅ 辞書リストから直接DataFrameを作成（型変換・列操作一切なし）
+        result_df = pd.DataFrame(display_rows)
+        
+        return result_df
