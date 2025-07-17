@@ -1,13 +1,13 @@
-# ui/settings_ui.py
+# ui/settings_ui.py - 動的重み付け設定UI対応版
 """
-設定UI - 銘柄選択、期間設定、テクニカル・バックテスト設定（推奨文言削除版）
+設定UI - 銘柄選択、期間設定、テクニカル・バックテスト設定（動的重み付け対応）
 """
 
 import streamlit as st
 from typing import Dict, Any, Tuple
 from datetime import datetime, timedelta
 
-from config.settings import PERIOD_OPTIONS
+from config.settings import PERIOD_OPTIONS, WEIGHT_MODES, DYNAMIC_WEIGHT_PROFILES
 from data import get_combined_search_results
 from ui.components import UIComponents
 from core.state_manager import StateManager
@@ -15,7 +15,7 @@ from core.app_controller import AppController
 
 
 class SettingsUI:
-    """設定UI管理クラス"""
+    """設定UI管理クラス（動的重み付け対応）"""
     
     def __init__(self):
         self.app_controller = AppController()
@@ -46,16 +46,16 @@ class SettingsUI:
             )
         
         # 詳細設定を独立したexpanderとして外部に配置
-        technical_params, backtest_params = self._render_advanced_settings_section()
+        technical_params, backtest_params, adaptive_params = self._render_advanced_settings_section()
         
         analysis_params = self.app_controller.get_analysis_parameters(
-            selected_period, technical_params, backtest_params
+            selected_period, technical_params, backtest_params, adaptive_params
         )
         
         return stock_code, analysis_params
     
     def _handle_company_search(self) -> str:
-        """会社名検索を処理"""
+        """会社名検索を処理（変更なし）"""
         search_keyword, api_key = UIComponents.render_company_search()
         
         if search_keyword:
@@ -95,7 +95,7 @@ class SettingsUI:
         return "AAPL"
     
     def _handle_direct_input(self) -> str:
-        """直接入力を処理"""
+        """直接入力を処理（変更なし）"""
         UIComponents.render_explanation_box(
             "⌨️ 銘柄コード直接入力",
             "すでに銘柄コードを知っている場合はこちら<br>" +
@@ -141,11 +141,11 @@ class SettingsUI:
                 else:
                     st.warning(f"⚠️ {message}")
         return stock_code
-        
-    def _render_advanced_settings_section(self) -> Tuple[Dict[str, int], Dict[str, float]]:
-        """詳細設定セクション"""
+    
+    def _render_advanced_settings_section(self) -> Tuple[Dict[str, int], Dict[str, float], Dict[str, Any]]:
+        """詳細設定セクション（動的重み付け対応）"""
         with st.expander("🔧 詳細設定（上級者向け）", expanded=False):
-            st.markdown("### 🎛️ テクニカル・バックテスト詳細設定")
+            st.markdown("### 🎛️ 分析・バックテスト詳細設定")
             
             UIComponents.render_explanation_box(
                 "🎛️ 詳細設定について",
@@ -156,6 +156,11 @@ class SettingsUI:
             
             # クイック設定プリセット
             self._render_preset_buttons()
+            
+            st.markdown("---")
+            
+            # === 新機能：重み付けモード選択 ===
+            adaptive_params = self._render_weight_mode_selection()
             
             st.markdown("---")
             
@@ -182,15 +187,242 @@ class SettingsUI:
                 st.markdown("#### 💰 バックテスト詳細設定")
                 backtest_params = UIComponents.render_backtest_settings()
         
-        return technical_params, backtest_params
+        return technical_params, backtest_params, adaptive_params
+    
+    def _render_weight_mode_selection(self) -> Dict[str, Any]:
+        """重み付けモード選択UIを表示"""
+        st.markdown("### 🎯 分析手法の選択（NEW!）")
+        
+        UIComponents.render_explanation_box(
+            "🆕 新機能：動的重み付け分析",
+            "相場の状況に応じて分析手法を自動調整する高度な機能が追加されました！<br>" +
+            "📊 **固定モード：** 従来の安定した分析（初心者推奨）<br>" +
+            "🎯 **適応モード：** 相場パターンに応じた高精度分析（中級者以上）<br>" +
+            "🔧 **手動モード：** 完全カスタマイズ（上級者向け）"
+        )
+        
+        # 重み付けモード選択
+        weight_modes = list(WEIGHT_MODES.keys())
+        mode_names = [WEIGHT_MODES[mode]['name'] for mode in weight_modes]
+        
+        current_mode = StateManager.get_weight_mode()
+        current_index = weight_modes.index(current_mode) if current_mode in weight_modes else 0
+        
+        selected_mode_index = st.selectbox(
+            "分析手法を選択",
+            range(len(mode_names)),
+            index=current_index,
+            format_func=lambda x: mode_names[x],
+            key="weight_mode_select"
+        )
+        
+        selected_mode = weight_modes[selected_mode_index]
+        
+        # モード説明
+        mode_info = WEIGHT_MODES[selected_mode]
+        st.info(f"""
+        **{mode_info['name']}**  
+        {mode_info['description']}  
+        **適用対象:** {mode_info['suitable_for']}
+        """)
+        
+        # 状態更新
+        if selected_mode != StateManager.get_weight_mode():
+            StateManager.set_weight_mode(selected_mode)
+        
+        adaptive_params = {'weight_mode': selected_mode}
+        
+        # モード別の詳細設定
+        if selected_mode == 'adaptive':
+            adaptive_params.update(self._render_adaptive_mode_settings())
+        elif selected_mode == 'manual':
+            adaptive_params.update(self._render_manual_mode_settings())
+        
+        return adaptive_params
+    
+    def _render_adaptive_mode_settings(self) -> Dict[str, Any]:
+        """適応モード設定UIを表示"""
+        st.markdown("#### 🎯 適応モード詳細設定")
+        
+        UIComponents.render_explanation_box(
+            "🤖 適応モードの仕組み",
+            "相場の波形パターンを自動検出し、最適な重み付けを適用します：<br>" +
+            "📈 **上昇トレンド:** 移動平均・MACD重視<br>" +
+            "📊 **レンジ相場:** RSI・ボリンジャーバンド重視<br>" +
+            "⚡ **転換期:** MACD最重視で変化をキャッチ"
+        )
+        
+        # パターン検出設定
+        settings = StateManager.get_pattern_detection_settings()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            smoothing = st.checkbox(
+                "📊 遷移平滑化",
+                value=settings['enable_transition_smoothing'],
+                help="パターン転換時の重み変化を滑らかにします"
+            )
+            
+            StateManager.set_pattern_detection_setting('enable_transition_smoothing', smoothing)
+        
+        with col2:
+            confidence_threshold = st.slider(
+                "🎯 信頼度閾値",
+                min_value=0.0,
+                max_value=1.0,
+                value=settings['confidence_threshold'],
+                step=0.1,
+                help="この値未満の信頼度の場合、固定重み付けを使用"
+            )
+            
+            StateManager.set_pattern_detection_setting('confidence_threshold', confidence_threshold)
+        
+        # パターン一覧表示（expanderの代わりにチェックボックスで制御）
+        show_patterns = st.checkbox("📋 検出可能なパターン一覧を表示", value=False)
+        
+        if show_patterns:
+            st.markdown("##### 🎯 検出可能なパターン詳細")
+            for pattern_key, pattern_info in DYNAMIC_WEIGHT_PROFILES.items():
+                with st.container():
+                    st.markdown(f"**{pattern_info['name']}**")
+                    st.markdown(f"- {pattern_info['description']}")
+                    st.markdown(f"- 戦略: {pattern_info['strategy_hint']}")
+                    st.markdown("---")
+        
+        return {
+            'enable_transition_smoothing': smoothing,
+            'confidence_threshold': confidence_threshold
+        }
+    
+    def _render_manual_mode_settings(self) -> Dict[str, Any]:
+        """手動モード設定UIを表示"""
+        st.markdown("#### 🔧 手動重み付け設定")
+        
+        UIComponents.render_explanation_box(
+            "⚖️ 重み付けのカスタマイズ",
+            "各テクニカル指標の重要度を手動で調整できます。<br>" +
+            "合計が100%になるよう自動調整されます。"
+        )
+        
+        current_weights = StateManager.get_manual_weights()
+        
+        # 重み付けスライダー
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            ma_weight = st.slider(
+                "📈 移動平均の重み",
+                min_value=0.0,
+                max_value=1.0,
+                value=current_weights['ma_trend'],
+                step=0.05,
+                help="トレンドの方向性を重視する度合い"
+            )
+            
+            rsi_weight = st.slider(
+                "🌡️ RSIの重み",
+                min_value=0.0,
+                max_value=1.0,
+                value=current_weights['rsi'],
+                step=0.05,
+                help="買われすぎ・売られすぎを重視する度合い"
+            )
+            
+            volume_weight = st.slider(
+                "📦 出来高の重み",
+                min_value=0.0,
+                max_value=1.0,
+                value=current_weights['volume'],
+                step=0.05,
+                help="取引量の変化を重視する度合い"
+            )
+        
+        with col2:
+            bollinger_weight = st.slider(
+                "📊 ボリンジャーバンドの重み",
+                min_value=0.0,
+                max_value=1.0,
+                value=current_weights['bollinger'],
+                step=0.05,
+                help="価格の相対的位置を重視する度合い"
+            )
+            
+            macd_weight = st.slider(
+                "⚡ MACDの重み",
+                min_value=0.0,
+                max_value=1.0,
+                value=current_weights['macd'],
+                step=0.05,
+                help="モメンタムの変化を重視する度合い"
+            )
+        
+        # 重み付けの正規化と更新
+        manual_weights = {
+            'ma_trend': ma_weight,
+            'rsi': rsi_weight,
+            'bollinger': bollinger_weight,
+            'macd': macd_weight,
+            'volume': volume_weight
+        }
+        
+        # 正規化
+        total_weight = sum(manual_weights.values())
+        if total_weight > 0:
+            normalized_weights = {k: v / total_weight for k, v in manual_weights.items()}
+        else:
+            normalized_weights = {k: 0.2 for k in manual_weights.keys()}  # 均等配分
+        
+        StateManager.set_manual_weights(normalized_weights)
+        
+        # 重み配分表示
+        st.markdown("**現在の重み配分:**")
+        weight_display = "  ".join([
+            f"{k}: {v:.1%}" for k, v in normalized_weights.items()
+        ])
+        st.code(weight_display)
+        
+        # プリセットボタン
+        st.markdown("**クイック設定:**")
+        preset_col1, preset_col2, preset_col3 = st.columns(3)
+        
+        with preset_col1:
+            if st.button("📈 トレンド重視", help="移動平均・MACDを重視"):
+                trend_weights = {
+                    'ma_trend': 0.4, 'macd': 0.3, 'bollinger': 0.15,
+                    'rsi': 0.1, 'volume': 0.05
+                }
+                StateManager.set_manual_weights(trend_weights)
+                st.rerun()
+        
+        with preset_col2:
+            if st.button("📊 レンジ重視", help="RSI・ボリンジャーを重視"):
+                range_weights = {
+                    'rsi': 0.35, 'bollinger': 0.35, 'ma_trend': 0.15,
+                    'macd': 0.1, 'volume': 0.05
+                }
+                StateManager.set_manual_weights(range_weights)
+                st.rerun()
+        
+        with preset_col3:
+            if st.button("⚖️ バランス型", help="均等な重み付け"):
+                balanced_weights = {
+                    'ma_trend': 0.2, 'rsi': 0.2, 'bollinger': 0.3,
+                    'macd': 0.3, 'volume': 0.1
+                }
+                StateManager.set_manual_weights(balanced_weights)
+                st.rerun()
+        
+        return {'manual_weights': normalized_weights}
     
     def _render_preset_buttons(self):
-        """設定プリセットボタンを表示"""
+        """設定プリセットボタンを表示（動的重み付け対応）"""
         st.markdown("#### 🎯 クイック設定プリセット")
         
         UIComponents.render_explanation_box(
             "🎯 プリセット選択",
-            "お好みのリスクレベルに合わせて設定を一括変更できます"
+            "お好みのリスクレベルに合わせて設定を一括変更できます。<br>" +
+            "動的重み付けの設定も自動で最適化されます。"
         )
         
         col1, col2, col3 = st.columns(3)
@@ -198,40 +430,59 @@ class SettingsUI:
         with col1:
             if st.button("🔰 初心者向け", help="安全重視の設定", use_container_width=True):
                 StateManager.set_preset_mode("beginner")
+                # 初心者は固定重み付け
+                StateManager.set_weight_mode("fixed")
                 st.success("✅ 初心者向け設定を適用しました")
                 st.rerun()
         
         with col2:
             if st.button("⚖️ バランス型", help="リスクとリターンのバランス", use_container_width=True):
                 StateManager.set_preset_mode("balanced")
+                # バランス型は適応モード
+                StateManager.set_weight_mode("adaptive")
                 st.success("✅ バランス型設定を適用しました")
                 st.rerun()
         
         with col3:
             if st.button("🚀 積極型", help="高リスク・高リターン", use_container_width=True):
                 StateManager.set_preset_mode("aggressive")
+                # 積極型も適応モード
+                StateManager.set_weight_mode("adaptive")
                 st.success("✅ 積極型設定を適用しました")
                 st.rerun()
     
     def _render_simple_settings(self):
-        """簡単設定モードの表示"""
+        """簡単設定モードの表示（動的重み付け情報追加）"""
         UIComponents.render_explanation_box(
             "🔰 簡単設定モード",
             "初心者におすすめの設定を自動で使用します！<br>" +
             "📊 **分析期間:** 中期（20日・50日移動平均）<br>" +
             "💰 **仮想資金:** 100万円でシミュレーション<br>" +
-            "⚡ **リスク設定:** 安全重視（2%リスク・5%損切り）"
+            "⚡ **リスク設定:** 安全重視（2%リスク・5%損切り）<br>" +
+            "🎯 **重み付け:** プリセットに応じて自動選択"
         )
         
         # 現在のプリセット表示
         current_preset = StateManager.get_preset_mode()
+        current_weight_mode = StateManager.get_weight_mode()
+        
         preset_names = {
-            'beginner': '🔰 初心者向け（超安全）',
-            'balanced': '⚖️ バランス型（推奨）',
-            'aggressive': '🚀 積極型（ハイリスク）'
+            'beginner': '🔰 初心者向け（超安全・固定重み付け）',
+            'balanced': '⚖️ バランス型（推奨・適応重み付け）',
+            'aggressive': '🚀 積極型（ハイリスク・適応重み付け）'
         }
         
-        st.info(f"📋 **現在の設定:** {preset_names.get(current_preset, 'バランス型')}")
+        weight_mode_names = {
+            'fixed': '固定重み付け',
+            'adaptive': '適応重み付け',
+            'manual': '手動重み付け'
+        }
+        
+        st.info(f"""
+        📋 **現在の設定:**  
+        - プリセット: {preset_names.get(current_preset, 'バランス型')}  
+        - 重み付け方式: {weight_mode_names.get(current_weight_mode, '固定重み付け')}
+        """)
         
         # 簡単設定の内容を表示
         technical_params, backtest_params = self.app_controller.get_preset_settings(current_preset)
@@ -257,7 +508,9 @@ class SettingsUI:
             """)
         
         UIComponents.render_tip_box(
-            "💡 設定について",
-            "これらは投資学習でよく使われる標準的な設定です。<br>" +
-            "慣れてきたら「🔧 詳細設定」でカスタマイズしてみてください！"
+            "💡 動的重み付けについて",
+            f"現在は「{weight_mode_names.get(current_weight_mode)}」を使用中です。<br>" +
+            "🔰 **固定重み付け:** 安定した従来の分析方式<br>" +
+            "🎯 **適応重み付け:** 相場状況に応じて重み自動調整<br>" +
+            "🔧 **手動重み付け:** お好みで完全カスタマイズ"
         )

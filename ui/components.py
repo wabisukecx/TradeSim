@@ -1,6 +1,6 @@
-# ui/components.py - 完全版（通貨単位修正版）
+# ui/components.py - メトリクス色分け修正版
 """
-UIコンポーネント機能 - Enter実行対応版
+UIコンポーネント機能 - Enter実行対応版（メトリクス色分け修正版）
 """
 
 import streamlit as st
@@ -537,7 +537,7 @@ class UIComponents:
     
     @staticmethod
     def render_metrics(current_price: float, info: Dict[str, Any], df: pd.DataFrame):
-        """主要指標を表示（通貨単位修正版）"""
+        """主要指標を表示（メトリクス色分け修正版）"""
         col1, col2 = st.columns(2)
         
         with col1:
@@ -571,11 +571,12 @@ class UIComponents:
                 change_pct = (current_price / prev_price - 1) * 100
                 change_val = current_price - prev_price
                 
-                # ✅ 通貨単位を明示した価格差表示
+                # ✅ 修正：前日からの変化 - デルタ値を数値で渡して正しい色分け
                 st.metric(
                     "📈 前日からの変化",
                     f"{change_pct:.2f}%",
-                    delta=f"{currency_symbol}{change_val:.2f}"  # 通貨単位を追加
+                    delta=round(change_val, 2),  # ✅ 小数点第2位まで丸める（価格差）
+                    delta_color="normal"
                 )
             
             rsi_current = df['RSI'].iloc[-1]
