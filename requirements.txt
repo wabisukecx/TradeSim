@@ -6,3 +6,6 @@ plotly
 ta
 scipy
 requests
+pytest
+pytest-cov
+pytest-mock
