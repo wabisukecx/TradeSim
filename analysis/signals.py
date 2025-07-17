@@ -1,30 +1,56 @@
-# analysis/signals.py
+# analysis/signals.py - 動的重み付け対応版
 """
-シグナル生成機能
+シグナル生成機能（動的重み付け対応）
 """
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 from config.settings import SIGNAL_THRESHOLDS, RSI_LEVELS
 
 
 class SignalGenerator:
-    """シグナル生成クラス"""
+    """シグナル生成クラス（動的重み付け対応）"""
     
     def __init__(self):
-        self.signal_weights = {
+        # デフォルトの固定重み付け
+        self.default_signal_weights = {
             'ma_trend': 1.0,
             'rsi': 1.0,
             'bollinger': 1.5,
             'macd': 1.5,
             'volume': 0.5
         }
+        
+        # 現在の重み付け設定
+        self.signal_weights = self.default_signal_weights.copy()
+        self.weight_mode = 'fixed'
+        self.manual_weights = None
+        
+        # パターン検出情報（動的重み付け用）
+        self.current_pattern_info = None
+    
+    def set_weight_mode(self, mode: str, manual_weights: Optional[Dict[str, float]] = None):
+        """
+        重み付けモードを設定
+        
+        Args:
+            mode: 'fixed', 'adaptive', 'manual'のいずれか
+            manual_weights: 手動重み付け（modeが'manual'の場合）
+        """
+        self.weight_mode = mode
+        self.manual_weights = manual_weights
+        
+        if mode == 'fixed':
+            self.signal_weights = self.default_signal_weights.copy()
+        elif mode == 'manual' and manual_weights:
+            self.signal_weights = manual_weights.copy()
+        # adaptive modeの場合は、パターン検出時に動的に設定される
     
     def generate_signals_advanced(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        高度なシグナル生成
+        高度なシグナル生成（動的重み付け対応）
         
         Args:
             df: テクニカル指標が計算済みのDataFrame
@@ -38,25 +64,48 @@ class SignalGenerator:
         signals['buy_score'] = 0.0
         signals['sell_score'] = 0.0
         
-        # 移動平均トレンドシグナル
+        # 動的重み付けの場合はパターン検出を実行
+        if self.weight_mode == 'adaptive':
+            self._apply_adaptive_weights(df)
+        
+        # 現在の重み付けでシグナル生成
         signals = self._add_ma_signals(signals, df)
-        
-        # RSIシグナル
         signals = self._add_rsi_signals(signals, df)
-        
-        # ボリンジャーバンドシグナル
         signals = self._add_bollinger_signals(signals, df)
-        
-        # MACDシグナル
         signals = self._add_macd_signals(signals, df)
-        
-        # 出来高シグナル
         signals = self._add_volume_signals(signals, df)
         
         # 最終シグナル決定
         signals = self._finalize_signals(signals)
         
         return signals
+    
+    def _apply_adaptive_weights(self, df: pd.DataFrame):
+        """動的重み付けを適用"""
+        try:
+            # パターン検出を試行
+            from analysis.pattern_detector import MarketPatternDetector
+            detector = MarketPatternDetector()
+            pattern_info = detector.detect_market_pattern(df)
+            
+            # パターン情報を保存
+            self.current_pattern_info = pattern_info
+            
+            # 検出されたパターンに基づいて重み付けを調整
+            if pattern_info and pattern_info['confidence'] > 0.6:
+                self.signal_weights = pattern_info['weights'].copy()
+            else:
+                # 信頼度が低い場合はデフォルト重み付けを使用
+                self.signal_weights = self.default_signal_weights.copy()
+                
+        except ImportError:
+            # パターン検出器が利用できない場合はデフォルト重み付けを使用
+            self.signal_weights = self.default_signal_weights.copy()
+            self.current_pattern_info = None
+        except Exception as e:
+            # その他のエラーの場合もデフォルト重み付けを使用
+            self.signal_weights = self.default_signal_weights.copy()
+            self.current_pattern_info = None
     
     def _add_ma_signals(self, signals: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
         """移動平均シグナルを追加"""
@@ -141,7 +190,7 @@ class SignalGenerator:
     
     def get_signal_explanation(self, signals: pd.DataFrame, df: pd.DataFrame, index: int = -1) -> Dict[str, any]:
         """
-        シグナルの詳細説明を取得
+        シグナルの詳細説明を取得（動的重み付け対応）
         
         Args:
             signals: シグナルDataFrame
@@ -161,8 +210,17 @@ class SignalGenerator:
             'signal': signal_data['signal'],
             'buy_score': signal_data['buy_score'],
             'sell_score': signal_data['sell_score'],
-            'reasons': []
+            'reasons': [],
+            'weights_breakdown': self.signal_weights.copy()  # 使用された重み付けを追加
         }
+        
+        # 動的重み付け情報の追加
+        if self.current_pattern_info:
+            explanation['pattern_info'] = {
+                'pattern_name': self.current_pattern_info['pattern_info']['name'],
+                'confidence': self.current_pattern_info['confidence'],
+                'strategy_hint': self.current_pattern_info['pattern_info']['strategy_hint']
+            }
         
         # 各指標の判断理由を追加
         reasons = []
@@ -172,21 +230,23 @@ class SignalGenerator:
             ma_short = price_data['MA_short']
             ma_long = price_data['MA_long']
             if pd.notna(ma_short) and pd.notna(ma_long):
+                weight_info = f"(重み: {self.signal_weights['ma_trend']:.1f})"
                 if ma_short > ma_long:
-                    reasons.append("✅ **上昇トレンド** - 短期平均 > 長期平均")
+                    reasons.append(f"✅ **上昇トレンド** - 短期平均 > 長期平均 {weight_info}")
                 else:
-                    reasons.append("❌ **下降トレンド** - 短期平均 < 長期平均")
+                    reasons.append(f"❌ **下降トレンド** - 短期平均 < 長期平均 {weight_info}")
         
         # RSI
         if 'RSI' in df.columns:
             rsi = price_data['RSI']
             if pd.notna(rsi):
+                weight_info = f"(重み: {self.signal_weights['rsi']:.1f})"
                 if rsi < RSI_LEVELS['oversold']:
-                    reasons.append(f"✅ **RSI低水準** - RSI = {rsi:.1f}（反発の可能性を示唆）")
+                    reasons.append(f"✅ **RSI低水準** - RSI = {rsi:.1f}（反発の可能性を示唆）{weight_info}")
                 elif rsi > RSI_LEVELS['overbought']:
-                    reasons.append(f"❌ **RSI高水準** - RSI = {rsi:.1f}（調整の可能性を示唆）")
+                    reasons.append(f"❌ **RSI高水準** - RSI = {rsi:.1f}（調整の可能性を示唆）{weight_info}")
                 else:
-                    reasons.append(f"⚪ **RSI中程度** - RSI = {rsi:.1f}（中立）")
+                    reasons.append(f"⚪ **RSI中程度** - RSI = {rsi:.1f}（中立）{weight_info}")
         
         # ボリンジャーバンド
         if all(col in df.columns for col in ['Close', 'BB_upper', 'BB_lower']):
@@ -195,10 +255,11 @@ class SignalGenerator:
             bb_lower = price_data['BB_lower']
             
             if all(pd.notna([close, bb_upper, bb_lower])):
+                weight_info = f"(重み: {self.signal_weights['bollinger']:.1f})"
                 if close < bb_lower:
-                    reasons.append("✅ **下側バンド突破** - ボリンジャーバンド下限を下回る")
+                    reasons.append(f"✅ **下側バンド突破** - ボリンジャーバンド下限を下回る {weight_info}")
                 elif close > bb_upper:
-                    reasons.append("❌ **上側バンド突破** - ボリンジャーバンド上限を上回る")
+                    reasons.append(f"❌ **上側バンド突破** - ボリンジャーバンド上限を上回る {weight_info}")
         
         # MACD
         if all(col in df.columns for col in ['MACD', 'MACD_signal']):
@@ -206,112 +267,24 @@ class SignalGenerator:
             macd_signal = price_data['MACD_signal']
             
             if pd.notna(macd) and pd.notna(macd_signal):
+                weight_info = f"(重み: {self.signal_weights['macd']:.1f})"
                 if macd > macd_signal:
-                    reasons.append("✅ **MACD上向き** - 買い勢いを示唆")
+                    reasons.append(f"✅ **MACD上向き** - 買い勢いを示唆 {weight_info}")
                 else:
-                    reasons.append("❌ **MACD下向き** - 売り勢いを示唆")
+                    reasons.append(f"❌ **MACD下向き** - 売り勢いを示唆 {weight_info}")
         
         explanation['reasons'] = reasons
         
         return explanation
     
-    def get_signal_statistics(self, signals: pd.DataFrame) -> Dict[str, any]:
-        """
-        シグナル統計情報を取得
-        
-        Args:
-            signals: シグナルDataFrame
-            
-        Returns:
-            dict: 統計情報
-        """
-        total_signals = len(signals)
-        buy_signals = (signals['signal'] == 1).sum()
-        sell_signals = (signals['signal'] == -1).sum()
-        neutral_signals = (signals['signal'] == 0).sum()
-        
-        return {
-            'total_signals': total_signals,
-            'buy_signals': buy_signals,
-            'sell_signals': sell_signals,
-            'neutral_signals': neutral_signals,
-            'buy_ratio': buy_signals / total_signals * 100 if total_signals > 0 else 0,
-            'sell_ratio': sell_signals / total_signals * 100 if total_signals > 0 else 0,
-            'avg_buy_score': signals[signals['signal'] == 1]['buy_score'].mean() if buy_signals > 0 else 0,
-            'avg_sell_score': signals[signals['signal'] == -1]['sell_score'].mean() if sell_signals > 0 else 0
-        }
+    def get_current_weights(self) -> Dict[str, float]:
+        """現在の重み付けを取得"""
+        return self.signal_weights.copy()
     
-    def detect_signal_clusters(self, signals: pd.DataFrame, window: int = 5) -> List[Dict]:
-        """
-        シグナルクラスター（連続するシグナル）を検出
-        
-        Args:
-            signals: シグナルDataFrame
-            window: 検出ウィンドウ
-            
-        Returns:
-            List[Dict]: クラスター情報のリスト
-        """
-        clusters = []
-        
-        for i in range(len(signals) - window + 1):
-            window_signals = signals['signal'].iloc[i:i+window]
-            
-            # 買いシグナルクラスター
-            if (window_signals == 1).sum() >= window * 0.6:
-                clusters.append({
-                    'type': 'buy_cluster',
-                    'start_index': i,
-                    'end_index': i + window - 1,
-                    'strength': (window_signals == 1).sum() / window
-                })
-            
-            # 売りシグナルクラスター
-            if (window_signals == -1).sum() >= window * 0.6:
-                clusters.append({
-                    'type': 'sell_cluster',
-                    'start_index': i,
-                    'end_index': i + window - 1,
-                    'strength': (window_signals == -1).sum() / window
-                })
-        
-        return clusters
-    
-    def optimize_thresholds(self, signals: pd.DataFrame, returns: pd.Series) -> Dict[str, float]:
-        """
-        シグナル閾値を最適化
-        
-        Args:
-            signals: シグナルDataFrame
-            returns: リターンSeries
-            
-        Returns:
-            dict: 最適化された閾値
-        """
-        best_buy_threshold = SIGNAL_THRESHOLDS['buy_threshold']
-        best_sell_threshold = SIGNAL_THRESHOLDS['sell_threshold']
-        best_sharpe = -np.inf
-        
-        # グリッドサーチで最適な閾値を探索
-        for buy_threshold in np.arange(1.0, 4.0, 0.5):
-            for sell_threshold in np.arange(1.0, 4.0, 0.5):
-                # 新しい閾値でシグナルを再計算
-                test_signals = signals.copy()
-                test_signals['signal'] = 0
-                test_signals.loc[test_signals['buy_score'] >= buy_threshold, 'signal'] = 1
-                test_signals.loc[test_signals['sell_score'] >= sell_threshold, 'signal'] = -1
-                
-                # シンプルなリターン計算
-                signal_returns = test_signals['signal'].shift(1) * returns
-                if signal_returns.std() > 0:
-                    sharpe = signal_returns.mean() / signal_returns.std()
-                    if sharpe > best_sharpe:
-                        best_sharpe = sharpe
-                        best_buy_threshold = buy_threshold
-                        best_sell_threshold = sell_threshold
-        
+    def get_weight_mode_info(self) -> Dict[str, any]:
+        """重み付けモード情報を取得"""
         return {
-            'buy_threshold': best_buy_threshold,
-            'sell_threshold': best_sell_threshold,
-            'optimized_sharpe': best_sharpe
+            'mode': self.weight_mode,
+            'weights': self.signal_weights.copy(),
+            'pattern_info': self.current_pattern_info
         }
