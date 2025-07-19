@@ -1,6 +1,6 @@
-# core/app_controller.py - バックテストエラー処理改善版
+# core/app_controller.py - JQuants API対応・validate_stock_symbol更新版
 """
-アプリケーションコントローラー - メイン業務ロジック（動的重み付け対応・バックテスト修正版）
+アプリケーションコントローラー - メイン業務ロジック（JQuants API対応・validate_stock_symbol更新版）
 """
 
 import streamlit as st
@@ -16,7 +16,7 @@ from config.settings import WEIGHT_MODES, DYNAMIC_WEIGHT_PROFILES
 
 
 class AppController:
-    """アプリケーション制御クラス（動的重み付け対応・バックテスト修正版）"""
+    """アプリケーション制御クラス（JQuants API対応・validate_stock_symbol更新版）"""
     
     def __init__(self):
         self.technical_analyzer = TechnicalAnalyzer()
@@ -435,69 +435,83 @@ class AppController:
         except Exception as e:
             return None
     
-    def validate_stock_symbol(self, symbol: str) -> Tuple[bool, str, str]:
+    def validate_stock_symbol(self, symbol: str) -> Tuple[bool, str, Dict[str, str]]:
         """
-        銘柄コードを検証（変更なし）
+        銘柄コードの検証（JQuants API対応・市場情報付き）
         
+        Args:
+            symbol: 銘柄コード
+            
         Returns:
-            Tuple[bool, str, str]: (有効性, メッセージ, 企業情報)
+            Tuple[bool, str, Dict]: (有効性, メッセージ, 市場情報)
+        """
+        try:
+            # 新しい検証機能を使用
+            from data.stock_fetcher import validate_stock_symbol
+            is_valid, message, market_info = validate_stock_symbol(symbol)
+            return is_valid, message, market_info
+            
+        except ImportError:
+            # フォールバック：従来の基本検証
+            return self._validate_stock_symbol_fallback(symbol)
+        except Exception:
+            # エラー時のフォールバック
+            return False, "検証中にエラーが発生しました", {}
+    
+    def _validate_stock_symbol_fallback(self, symbol: str) -> Tuple[bool, str, Dict[str, str]]:
+        """
+        銘柄コード検証のフォールバック（基本検証）
+        
+        Args:
+            symbol: 銘柄コード
+            
+        Returns:
+            Tuple[bool, str, Dict]: (有効性, メッセージ, 市場情報)
         """
         if not symbol or not symbol.strip():
-            return False, "銘柄コードを入力してください", ""
+            return False, "銘柄コードを入力してください", {}
         
         symbol = symbol.strip().upper()
         
         # 基本的なフォーマットチェック
         if len(symbol) < 1 or len(symbol) > 10:
-            return False, "銘柄コードの長さが正しくありません", ""
+            return False, "銘柄コードの長さが正しくありません", {}
         
         # 日本株のフォーマット（例: 7203.T）
         if symbol.endswith('.T'):
             code_part = symbol[:-2]
             if code_part.isdigit() and len(code_part) == 4:
-                company_info = self._get_japanese_company_info(symbol)
-                return True, f"日本株として認識されました: {symbol}", company_info
+                market_info = {
+                    'market': '東京証券取引所',
+                    'exchange': 'Tokyo Stock Exchange',
+                    'currency': 'JPY',
+                    'region': 'Japan',
+                    'suffix': '.T'
+                }
+                return True, f"日本株として認識されました: {symbol}", market_info
             else:
-                return False, "日本株の形式が正しくありません（例: 7203.T）", ""
+                return False, "日本株の形式が正しくありません（例: 7203.T）", {}
         
         # 米国株のフォーマット（例: AAPL）
         if symbol.isalpha() and 1 <= len(symbol) <= 5:
-            company_info = self._get_us_company_info(symbol)
-            return True, f"米国株として認識されました: {symbol}", company_info
+            market_info = {
+                'market': 'US Stock Market',
+                'exchange': 'NASDAQ/NYSE',
+                'currency': 'USD',
+                'region': 'United States',
+                'suffix': ''
+            }
+            return True, f"米国株として認識されました: {symbol}", market_info
         
         # その他の市場
         if symbol.replace('.', '').replace('-', '').isalnum():
-            return True, f"銘柄コードとして認識されました: {symbol}", "※ 詳細は分析実行時に取得されます"
+            market_info = {
+                'market': 'Unknown Market',
+                'exchange': 'Unknown Exchange',
+                'currency': 'Unknown',
+                'region': 'Unknown',
+                'suffix': ''
+            }
+            return True, f"銘柄コードとして認識されました: {symbol}", market_info
         
-        return False, "銘柄コードの形式が正しくありません", ""
-    
-    def _get_japanese_company_info(self, symbol: str) -> str:
-        """日本企業の簡易情報を取得（変更なし）"""
-        japanese_companies = {
-            "7203.T": "トヨタ自動車 - 世界最大の自動車メーカー",
-            "6758.T": "ソニーグループ - エンターテインメント・テクノロジー企業",
-            "7974.T": "任天堂 - ゲーム・娯楽機器メーカー",
-            "9984.T": "ソフトバンクグループ - 投資・通信企業",
-            "6861.T": "キーエンス - 自動化機器メーカー",
-            "4755.T": "楽天グループ - インターネットサービス",
-            "9983.T": "ファーストリテイリング - 衣料品企業（ユニクロ）",
-            "7267.T": "ホンダ - 自動車・バイクメーカー",
-            "7201.T": "日産自動車 - 自動車メーカー"
-        }
-        return japanese_companies.get(symbol, "日本の上場企業")
-    
-    def _get_us_company_info(self, symbol: str) -> str:
-        """米国企業の簡易情報を取得（変更なし）"""
-        us_companies = {
-            "AAPL": "Apple Inc. - iPhone・Mac等を製造するテクノロジー企業",
-            "MSFT": "Microsoft Corporation - Windows・Office等のソフトウェア企業",
-            "GOOGL": "Alphabet Inc. - Google検索・YouTube等を運営",
-            "AMZN": "Amazon.com Inc. - 電子商取引・クラウドサービス企業",
-            "TSLA": "Tesla Inc. - 電気自動車・エネルギー企業",
-            "NVDA": "NVIDIA Corporation - GPU・AI半導体メーカー",
-            "META": "Meta Platforms Inc. - Facebook・Instagram等を運営",
-            "NFLX": "Netflix Inc. - 動画配信サービス",
-            "DIS": "The Walt Disney Company - エンターテインメント企業",
-            "NKE": "Nike Inc. - スポーツ用品メーカー"
-        }
-        return us_companies.get(symbol, "米国の上場企業")
+        return False, "銘柄コードの形式が正しくありません", {}
