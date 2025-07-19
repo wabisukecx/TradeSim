@@ -396,7 +396,9 @@ class AnalysisUI:
         for reason in signal_explanation['reasons']:
             st.write(reason)
         
-        st.warning(DISCLAIMERS['simulation'])
+        disclaimer_text = DISCLAIMERS.get('simulation', 
+        "⚠️ これらは機械的な分析結果であり、将来の価格を予測するものではありません。")
+        st.warning(disclaimer_text)
     
     def _render_charts(self, analysis_data: Dict[str, Any]):
         """チャートを表示（変更なし）"""
@@ -582,15 +584,7 @@ class AnalysisUI:
             
             # 通貨情報を取得
             currency = info.get('currency', 'JPY')
-            
-            # 基本情報
-            if info.get('longBusinessSummary'):
-                st.markdown("#### 📝 事業内容")
-                summary = info.get('longBusinessSummary', '')
-                if len(summary) > 200:
-                    summary = summary[:200] + "..."
-                st.write(summary)
-            
+                       
             # 財務指標
             self._render_financial_metrics(info, currency)
             

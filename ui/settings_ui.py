@@ -1,6 +1,6 @@
-# ui/settings_ui.py - 動的重み付け設定UI対応版
+# ui/settings_ui.py - 完全版（API検索+動的重み付け分析）
 """
-設定UI - 銘柄選択、期間設定、テクニカル・バックテスト設定（動的重み付け対応）
+設定UI - 銘柄選択、期間設定、テクニカル・バックテスト設定（完全版）
 """
 
 import streamlit as st
@@ -15,7 +15,7 @@ from core.app_controller import AppController
 
 
 class SettingsUI:
-    """設定UI管理クラス（動的重み付け対応）"""
+    """設定UI管理クラス（完全版）"""
     
     def __init__(self):
         self.app_controller = AppController()
@@ -34,11 +34,7 @@ class SettingsUI:
             
             # 期間選択
             selected_period, days = UIComponents.render_period_selection()
-            
-            # 基本設定完了メッセージ
-            st.markdown("---")
-            st.success("✅ 基本設定完了！このまま「🚀 分析開始」を押してもOKです")
-            
+                       
             UIComponents.render_tip_box(
                 "💡 設定について",
                 "上級者の方は下の「🔧 詳細設定」で細かく調整できます。<br>" +
@@ -55,95 +51,152 @@ class SettingsUI:
         return stock_code, analysis_params
     
     def _handle_company_search(self) -> str:
-        """会社名検索を処理（変更なし）"""
-        search_keyword, api_key = UIComponents.render_company_search()
+        """会社名検索を処理（詳細デバッグ対応版）"""
+        search_keyword, api_settings = UIComponents.render_company_search()
+        
+        # セッション状態の初期化
+        if 'search_results' not in st.session_state:
+            st.session_state.search_results = []
+        if 'selected_symbol' not in st.session_state:
+            st.session_state.selected_symbol = None
+        if 'current_search_keyword' not in st.session_state:
+            st.session_state.current_search_keyword = ""
+        
+        # 検索キーワードが変更された場合、選択状態をリセット
+        if search_keyword != st.session_state.current_search_keyword:
+            st.session_state.selected_symbol = None
+            st.session_state.current_search_keyword = search_keyword
         
         if search_keyword:
             with st.spinner("🔍 検索中..."):
-                results = get_combined_search_results(search_keyword, api_key)
-            
+                # JQuants API対応の統合検索を実行
+                jquants_config = api_settings.get('jquants_config')
+                alpha_vantage_key = api_settings.get('alpha_vantage_key')
+                
+                results = get_combined_search_results(
+                    keyword=search_keyword,
+                    alpha_vantage_key=alpha_vantage_key,
+                    jquants_config=jquants_config
+                )
+                
+                st.session_state.search_results = results
+                
+            # 検索結果の処理
             if results:
                 st.markdown(f"**🎯 検索結果: '{search_keyword}'**")
                 
-                selected_stock = None
+                # 検索結果の表示と選択（ラジオボタン使用）
+                options = []
+                option_data = {}
+                
                 for i, result in enumerate(results):
                     symbol = result['symbol']
                     name = result['name']
                     match_type = result['match_type']
-                    region = result.get('region', '日本' if symbol.endswith('.T') else '米国')
                     
-                    if st.button(
-                        f"📈 {symbol} - {name} ({region})",
-                        key=f"search_result_{i}",
-                        help=f"マッチタイプ: {match_type}"
-                    ):
-                        selected_stock = symbol
-                        st.session_state.selected_stock_name = name
-                        st.success(f"✅ 選択しました: {symbol} - {name}")
+                    # 詳細情報の取得
+                    region = result.get('region', '')
+                    market = result.get('market', '')
+                    exchange = result.get('exchange', '')
+                    currency = result.get('currency', '')
+                    
+                    # 表示用の詳細情報文字列を構築
+                    details = []
+                    if market:
+                        details.append(f"市場: {market}")
+                    elif exchange:
+                        details.append(f"取引所: {exchange}")
+                    if region:
+                        details.append(f"地域: {region}")
+                    if currency:
+                        details.append(f"通貨: {currency}")
+                    
+                    detail_str = " | ".join(details) if details else "詳細情報なし"
+                    
+                    # 検索ソースのアイコン
+                    source_icon = "🇯🇵" if "JQuants" in match_type else "🌍" if "Alpha Vantage" in match_type else "🔍"
+                    
+                    # オプション文字列
+                    option_text = f"{source_icon} {symbol} - {name}"
+                    options.append(option_text)
+                    option_data[option_text] = {
+                        'symbol': symbol,
+                        'name': name,
+                        'details': detail_str,
+                        'match_type': match_type
+                    }
                 
-                return selected_stock if selected_stock else results[0]['symbol']
+                # ラジオボタンで選択
+                if options:
+                    selected_option = st.radio(
+                        "🎯 分析したい会社を選択してください:",
+                        options,
+                        key="company_selection_radio",
+                        help="選択後、下の「🚀 分析開始」ボタンを押してください"
+                    )
+                    
+                    if selected_option:
+                        selected_data = option_data[selected_option]
+                        st.session_state.selected_symbol = selected_data['symbol']
+                        st.session_state.selected_stock_name = selected_data['name']
+                        
+                        # 選択結果の表示
+                        st.success(f"✅ 選択しました: {selected_data['symbol']} - {selected_data['name']}")
+                        
+                        # 詳細情報も表示
+                        if selected_data['details'] != "詳細情報なし":
+                            st.info(f"📊 **詳細情報**: {selected_data['details']} | **検索ソース**: {selected_data['match_type']}")
+                
+                # 選択された銘柄を返す（選択されていない場合は最初の結果）
+                return st.session_state.selected_symbol if st.session_state.selected_symbol else results[0]['symbol']
+            
             else:
                 st.warning("🔍 検索結果が見つかりませんでした")
-                st.markdown("""
-                **💡 検索のコツ:**
-                - 会社の正式名称で試してみてください
-                - 英語と日本語両方で試してみてください  
-                - 略称でも検索できます
-                """)
-                return "AAPL"
+                
+                # Alpha Vantage API制限チェック（簡潔版）
+                alpha_vantage_key = api_settings.get('alpha_vantage_key')
+                if alpha_vantage_key:
+                    # Alpha Vantage API制限をチェック
+                    try:
+                        import requests
+                        test_url = "https://www.alphavantage.co/query"
+                        test_params = {
+                            'function': 'SYMBOL_SEARCH',
+                            'keywords': search_keyword,
+                            'apikey': alpha_vantage_key
+                        }
+                        test_response = requests.get(test_url, params=test_params, timeout=10)
+                        test_data = test_response.json()
+                        
+                        # API制限エラーの検出
+                        if 'Information' in test_data and 'rate limit' in test_data['Information']:
+                            st.error("⚠️ **Alpha Vantage API制限**: 1日の検索回数制限に達しました。明日再試行してください。")
+                        elif 'Note' in test_data:
+                            st.error("⚠️ **Alpha Vantage API制限**: しばらく待ってから再試行してください。")
+                        
+                    except Exception:
+                        pass  # エラーは無視
+                
+                return "NVDA" if search_keyword.lower() in ['nvidia', 'nvda'] else "AAPL"
         
-        return "AAPL"
+        # 検索キーワードが入力されていない場合
+        return "AAPL"  # デフォルト値
+    
+    def _display_search_improvement_suggestions(self, api_settings: dict):
+        """検索改善提案を表示（簡潔版）"""
+        st.markdown("""
+        **💡 検索のコツ:**
+        - 正式名称で試してみてください（例：「NVIDIA Corporation」）
+        - 略称でも検索できます（例：「NVDA」）
+        - 見つからない場合は「⌨️ コードを直接入力」で「NVDA」を入力してください
+        """)
     
     def _handle_direct_input(self) -> str:
-        """直接入力を処理（変更なし）"""
-        UIComponents.render_explanation_box(
-            "⌨️ 銘柄コード直接入力",
-            "すでに銘柄コードを知っている場合はこちら<br>" +
-            "💡 入力後にEnterキーを押すか、下の「🚀 分析開始」ボタンを押してください"
-        )
-        
-        # 自動実行オプション
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            stock_code = st.text_input(
-                "銘柄コード",
-                value=StateManager.get_direct_input(),
-                placeholder="例: AAPL, 7203.T, TSLA",
-                key="direct_stock_input",
-                help="入力後にEnterキーを押すと自動で検証されます"
-            )
-        
-        with col2:
-            auto_run = st.checkbox(
-                "⚡ 自動実行", 
-                value=False,
-                help="チェックすると、銘柄コード入力後に自動で分析開始"
-            )
-        
-        # 入力値の変更検知と処理
-        if stock_code != StateManager.get_direct_input():
-            StateManager.set_direct_input(stock_code)
-            
-            # リアルタイム検証と表示
-            if stock_code.strip():
-                is_valid, message, company_info = self.app_controller.validate_stock_symbol(stock_code)
-                
-                if is_valid:
-                    st.success(f"✅ {message}")
-                    if company_info:
-                        st.info(f"💼 {company_info}")
-                    
-                    # 自動実行が有効で、有効な銘柄コードの場合
-                    if auto_run and not StateManager.is_running():
-                        st.info("🚀 自動分析を実行します...")
-                        StateManager.trigger_auto_run()
-                else:
-                    st.warning(f"⚠️ {message}")
-        return stock_code
+        """直接入力を処理"""
+        return UIComponents.render_direct_input()
     
     def _render_advanced_settings_section(self) -> Tuple[Dict[str, int], Dict[str, float], Dict[str, Any]]:
-        """詳細設定セクション（動的重み付け対応）"""
+        """詳細設定セクション（完全版：API検索+動的重み付け対応）"""
         with st.expander("🔧 詳細設定（上級者向け）", expanded=False):
             st.markdown("### 🎛️ 分析・バックテスト詳細設定")
             
@@ -159,7 +212,7 @@ class SettingsUI:
             
             st.markdown("---")
             
-            # === 新機能：重み付けモード選択 ===
+            # === 🆕 動的重み付けモード選択（復元・完全版） ===
             adaptive_params = self._render_weight_mode_selection()
             
             st.markdown("---")
@@ -186,11 +239,11 @@ class SettingsUI:
                 
                 st.markdown("#### 💰 バックテスト詳細設定")
                 backtest_params = UIComponents.render_backtest_settings()
-        
-        return technical_params, backtest_params, adaptive_params
+            
+            return technical_params, backtest_params, adaptive_params
     
     def _render_weight_mode_selection(self) -> Dict[str, Any]:
-        """重み付けモード選択UIを表示"""
+        """重み付けモード選択UIを表示（完全版）"""
         st.markdown("### 🎯 分析手法の選択（NEW!）")
         
         UIComponents.render_explanation_box(
@@ -278,7 +331,7 @@ class SettingsUI:
             
             StateManager.set_pattern_detection_setting('confidence_threshold', confidence_threshold)
         
-        # パターン一覧表示（expanderの代わりにチェックボックスで制御）
+        # パターン一覧表示
         show_patterns = st.checkbox("📋 検出可能なパターン一覧を表示", value=False)
         
         if show_patterns:
