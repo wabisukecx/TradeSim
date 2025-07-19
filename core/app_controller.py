@@ -96,7 +96,7 @@ class AppController:
                 
                 else:
                     st.error("""
-                    ❌ **データを取得できませんでした**
+                    ❌ データを取得できませんでした
 
                     以下を確認してください：
                     - 銘柄コードが正しいか
@@ -234,7 +234,7 @@ class AppController:
         # フォールバック使用の通知
         total_return = (portfolio_values[-1] / initial_capital - 1) * 100
         st.info(f"""
-        📈 **フォールバックモード結果**
+        📈 フォールバックモード結果
         - Buy&Hold戦略をシミュレーション
         - 総リターン: {total_return:.2f}%
         - これは参考値です。実際の戦略結果ではありません。
@@ -288,11 +288,11 @@ class AppController:
             confidence_color = "🔴"
         
         st.info(f"""
-        🎯 **相場パターン検出結果**
+        🎯 相場パターン検出結果
         
-        **検出パターン:** {pattern_name}  
-        **信頼度:** {confidence_color} {confidence_level} ({confidence_pct:.1f}%)  
-        **戦略ヒント:** {adaptive_info['strategy_hint']}
+        検出パターン: {pattern_name}  
+        信頼度: {confidence_color} {confidence_level} ({confidence_pct:.1f}%)  
+        戦略ヒント: {adaptive_info['strategy_hint']}
         """)
     
     def get_analysis_parameters(self, selected_period: str, 

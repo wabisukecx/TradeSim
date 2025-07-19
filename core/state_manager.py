@@ -386,7 +386,7 @@ class StateManager:
     @staticmethod
     def debug_state():
         """デバッグ用：現在の状態を表示"""
-        st.write("**デバッグ情報:**")
+        st.write("デバッグ情報:")
         debug_info = {
             'current_stock_code': st.session_state.get('current_stock_code'),
             'current_company_name': st.session_state.get('current_company_name'),
