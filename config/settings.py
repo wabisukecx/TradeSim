@@ -1,4 +1,4 @@
-# config/settings.py - 動的重み付け対応版
+# config/settings.py - 動的重み付け対応完全版
 """
 アプリケーション設定管理（動的重み付け対応完全版）
 """
@@ -75,6 +75,25 @@ PERIOD_OPTIONS = {
     "2年": 730
 }
 
+# === 免責事項 ===
+DISCLAIMERS = {
+    'analysis': """
+    ⚠️ **重要な免責事項**: この分析結果は教育・学習目的のみです。
+    実際の投資判断は、必ず専門的なアドバイスを受けてから行ってください。
+    投資にはリスクが伴います。
+    """,
+    'adaptive_analysis': """
+    ⚠️ **重要な免責事項**: この動的重み付け分析は教育・学習目的のみです。
+    AI分析結果は参考情報であり、投資判断の保証はありません。
+    実際の投資判断は、必ず専門的なアドバイスを受けてから行ってください。
+    投資にはリスクが伴います。
+    """,
+    'backtest': """
+    ⚠️ **バックテスト免責事項**: 過去の成績は将来の成果を保証するものではありません。
+    実際の取引では、スリッページや流動性等の要因により結果が異なる場合があります。
+    """
+}
+
 # === データ検証設定 ===
 DATA_VALIDATION = {
     'max_na_ratio': 0.1,        # 欠損データ許容率
@@ -137,22 +156,22 @@ DYNAMIC_WEIGHT_PROFILES = {
     'downtrend': {
         'name': '下降トレンド',
         'description': '価格が持続的に下降している状態。移動平均線が下向きで、価格が移動平均を下回っている。',
-        'strategy_hint': '移動平均とMACDを重視し、反転ポイントを慎重に判断。戻り売りのタイミングを探る。',
+        'strategy_hint': 'RSIとボリンジャーバンドを重視し、反発ポイントを見極める。下降継続には注意。',
         'risk_level': 'high',
         'confidence_required': 0.7,
         'weights': {
-            'ma_trend': 0.35,
-            'macd': 0.30,
-            'rsi': 0.20,
-            'bollinger': 0.10,
+            'rsi': 0.30,
+            'bollinger': 0.30,
+            'ma_trend': 0.25,
+            'macd': 0.10,
             'volume': 0.05
         },
-        'characteristics': ['持続的下降', '移動平均下向き', '売り圧力強い']
+        'characteristics': ['持続的下降', '移動平均下向き', '弱気相場']
     },
-    'range': {
+    'sideways': {
         'name': 'レンジ相場',
-        'description': '価格が一定の範囲内で上下を繰り返している状態。明確なトレンドが見られない。',
-        'strategy_hint': 'RSIとボリンジャーバンドを重視し、レンジの上下限での反転を狙う戦略。',
+        'description': '価格が一定のレンジ内で推移している横ばい相場。明確なトレンドがない状態。',
+        'strategy_hint': 'RSIとボリンジャーバンドを最重視し、レンジの上下限での売買を検討。',
         'risk_level': 'low',
         'confidence_required': 0.6,
         'weights': {
@@ -162,35 +181,20 @@ DYNAMIC_WEIGHT_PROFILES = {
             'macd': 0.10,
             'volume': 0.05
         },
-        'characteristics': ['横ばい', '範囲内変動', 'トレンドレス']
+        'characteristics': ['横ばい推移', 'レンジ内変動', '方向感なし']
     },
-    'transition': {
-        'name': '転換期',
-        'description': 'トレンドが変化している可能性がある状態。重要な転換点の兆候が現れている。',
-        'strategy_hint': 'MACDを最重視し、転換点の早期検出を図る。確認取れるまで慎重にポジション管理。',
+    'volatile': {
+        'name': '高ボラティリティ',
+        'description': '価格変動が激しく、予測困難な相場状況。急激な上下動を繰り返している。',
+        'strategy_hint': 'MACDとボリュームを重視し、急激な変化を捉える。リスク管理を最優先。',
         'risk_level': 'high',
         'confidence_required': 0.8,
         'weights': {
-            'macd': 0.45,
-            'rsi': 0.25,
-            'bollinger': 0.15,
-            'ma_trend': 0.10,
-            'volume': 0.05
-        },
-        'characteristics': ['方向性変化', '不確実性高い', 'シグナル混在']
-    },
-    'acceleration': {
-        'name': '加速相場',
-        'description': '価格変動が急激に拡大している状態。ボラティリティと出来高が急増。',
-        'strategy_hint': '出来高を重視し、加速の持続性を判断。急な反転リスクに注意。',
-        'risk_level': 'high',
-        'confidence_required': 0.7,
-        'weights': {
+            'macd': 0.40,
             'volume': 0.25,
-            'macd': 0.30,
             'bollinger': 0.20,
-            'ma_trend': 0.15,
-            'rsi': 0.10
+            'rsi': 0.10,
+            'ma_trend': 0.05
         },
         'characteristics': ['急激変動', '高ボラティリティ', '出来高急増']
     },
@@ -260,23 +264,19 @@ PATTERN_DETECTION_SETTINGS = {
 ERROR_MESSAGES = {
     'data_fetch_failed': "❌ データを取得できませんでした",
     'data_empty': "❌ データが空です",
-    'data_insufficient': "❌ 分析に十分なデータがありません",
-    'symbol_not_found': "❌ 指定された銘柄が見つかりません",
-    'network_error': "❌ ネットワークエラーが発生しました",
-    'api_limit': "❌ API制限に達しました",
-    'invalid_symbol': "❌ 銘柄コードが正しくありません",
-    'pattern_detection_failed': "⚠️ パターン検出に失敗しました。固定重み付けを使用します",
-    'weight_calculation_error': "⚠️ 重み付け計算エラー。デフォルト値を使用します"
+    'data_insufficient': "❌ 分析に必要な十分なデータがありません",
+    'invalid_symbol': "❌ 無効な銘柄コードです",
+    'api_error': "❌ API接続エラーが発生しました",
+    'calculation_error': "❌ 計算エラーが発生しました",
+    'pattern_detection_failed': "❌ パターン検出に失敗しました"
 }
 
 # === 成功メッセージ ===
 SUCCESS_MESSAGES = {
-    'data_fetched': "✅ データを正常に取得しました",
-    'analysis_complete': "✅ 分析が完了しました",
-    'portfolio_added': "✅ ポートフォリオに追加しました",
-    'portfolio_removed': "✅ ポートフォリオから削除しました",
-    'pattern_detected': "🎯 相場パターンを検出しました",
-    'weights_optimized': "⚖️ 重み付けを最適化しました"
+    'data_loaded': "✅ データを正常に読み込みました",
+    'analysis_completed': "✅ 分析が正常に完了しました",
+    'pattern_detected': "✅ 相場パターンを検出しました",
+    'backtest_completed': "✅ バックテストが正常に完了しました"
 }
 
 # === 警告メッセージ ===
@@ -285,35 +285,19 @@ WARNING_MESSAGES = {
     'high_zero_volume': "⚠️ 出来高データに多くの0が含まれています",
     'insufficient_data': "⚠️ データが十分ではありません",
     'low_confidence_pattern': "⚠️ パターン検出の信頼度が低いです",
-    'adaptive_fallback': "⚠️ 動的重み付けから固定重み付けにフォールバックしました"
+    'adaptive_fallback': "⚠️ 動的重み付けから固定重み付けにフォールバックしました",
+    'data_quality_low': "⚠️ データ品質が低いため結果の信頼性が低下する可能性があります",
+    'api_rate_limit': "⚠️ API制限に近づいています。しばらく待ってから再試行してください",
+    'network_unstable': "⚠️ ネットワークが不安定です",
+    'calculation_precision': "⚠️ 計算精度が低下している可能性があります"
 }
 
-# === 免責事項 ===
-DISCLAIMERS = {
-    'main': """
-    ⚠️ このアプリは教育・学習専用です
-    ⚠️ 投資助言や推奨ではありません
-    ⚠️ 実際の投資判断は自己責任で行ってください
-    ⚠️ 投資前には必ず専門家にご相談ください
-    ⚠️ 株価は上がったり下がったりするのが普通です
-    """,
-    'analysis': "⚠️ 以下の結果は参考情報であり、投資助言ではありません。教育・学習目的でのみご利用ください。",
-    'simulation': "⚠️ これらは機械的な分析結果であり、将来の価格を予測するものではありません。",
-    'adaptive_analysis': "⚠️ 動的重み付け分析結果は参考情報です。相場パターンの解釈には限界があります。教育・学習目的でのみご利用ください。"
-}
-
-# === 学習関連設定（将来拡張用） ===
-LEARNING_SETTINGS = {
-    'enable_weight_learning': False,  # 重み付け学習機能
-    'learning_rate': 0.01,  # 学習率
-    'memory_size': 100,  # 学習メモリサイズ
-    'performance_feedback': True  # パフォーマンスフィードバック
-}
-
-# === UI表示設定 ===
-UI_SETTINGS = {
-    'max_chart_points': 500,  # チャート最大データ点数
-    'animation_enabled': True,  # アニメーション有効化
-    'real_time_updates': False,  # リアルタイム更新
-    'compact_mode': False  # コンパクト表示モード
+# === 情報メッセージ ===
+INFO_MESSAGES = {
+    'calculating': "🔄 計算中...",
+    'fetching_data': "📊 データを取得中...",
+    'detecting_pattern': "🎯 パターンを検出中...",
+    'running_backtest': "⚡ バックテスト実行中...",
+    'loading_settings': "⚙️ 設定を読み込み中...",
+    'initializing': "🚀 アプリケーションを初期化中..."
 }
