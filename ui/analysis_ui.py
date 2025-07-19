@@ -460,20 +460,20 @@ class AnalysisUI:
                     st.metric(
                         "💵 仮想最終資産",
                         f"¥{final_value:,.0f}",
-                        delta=round(total_return_abs, 1),  # ✅ 小数点第1位まで丸める
-                        delta_color="normal"
+                        delta=f"¥{total_return_abs:,.0f}",  # ✅ 通貨記号付きで表示
+                        delta_color="normal"  # 正の値=緑、負の値=赤
                     )
                     st.metric(
                         "📉 最大下落幅",
                         f"{max_drawdown:.2f}%"
                     )
                 with col2:
-                    # 総リターン - プラスは緑、マイナスは赤に
+                    # 総リターン - 適切なデルタ値を設定
                     st.metric(
                         "📈 総リターン",
                         f"{total_return_pct:.2f}%",
-                        delta=None,
-                        delta_color="normal" if total_return_pct >= 0 else "inverse"
+                        delta=f"{total_return_pct:+.2f}%",  # ✅ パーセント変化を表示
+                        delta_color="normal"  # 正の値=緑、負の値=赤
                     )
                     st.metric(
                         "⚡ シャープレシオ",
