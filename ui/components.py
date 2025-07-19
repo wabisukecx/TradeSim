@@ -1,6 +1,6 @@
-# ui/components.py - JQuants API対応・API設定常時表示版
+# ui/components.py - JQuants API対応・API設定常時表示版（メトリクス色分け修正版）
 """
-UIコンポーネント機能 - JQuants API対応・API設定常時表示版
+UIコンポーネント機能 - JQuants API対応・API設定常時表示版（メトリクス色分け修正版）
 """
 
 import streamlit as st
@@ -14,7 +14,7 @@ from config.settings import (
 
 
 class UIComponents:
-    """UIコンポーネントクラス（JQuants API対応・API設定常時表示）"""
+    """UIコンポーネントクラス（JQuants API対応・API設定常時表示・メトリクス色分け修正版）"""
     
     @staticmethod
     def render_header():
@@ -514,12 +514,17 @@ class UIComponents:
                 change_pct = (current_price / prev_price - 1) * 100
                 change_val = current_price - prev_price
                 
-                # 前日からの変化 - デルタ値を適切にフォーマット（色分け修正）
+                # ✅ 修正1: 前日比 - マイナス記号を文字列の先頭に配置
+                if change_val >= 0:
+                    delta_display = f"+{currency_symbol}{change_val:,.2f}"
+                else:
+                    delta_display = f"-{currency_symbol}{abs(change_val):,.2f}"
+                
                 st.metric(
                     "📈 前日比",
                     f"{change_pct:+.2f}%",
-                    delta=f"{currency_symbol}{change_val:+.2f}",
-                    delta_color="normal"  # 正の値=緑、負の値=赤
+                    delta=delta_display,  # ✅ "-¥2.50" 形式で正しい色分け
+                    delta_color="normal"
                 )
                 
                 # 期間中の変化率
@@ -527,11 +532,17 @@ class UIComponents:
                 period_change_pct = (current_price / start_price - 1) * 100
                 period_change_val = current_price - start_price
                 
+                # ✅ 修正2: 期間全体 - マイナス記号を文字列の先頭に配置
+                if period_change_val >= 0:
+                    period_delta_display = f"+{currency_symbol}{period_change_val:,.2f}"
+                else:
+                    period_delta_display = f"-{currency_symbol}{abs(period_change_val):,.2f}"
+                
                 st.metric(
                     "📊 期間全体",
                     f"{period_change_pct:+.2f}%",
-                    delta=f"{currency_symbol}{period_change_val:+.2f}",
-                    delta_color="normal"  # 正の値=緑、負の値=赤
+                    delta=period_delta_display,  # ✅ "-¥10.92" 形式で正しい色分け
+                    delta_color="normal"
                 )
             else:
                 st.metric("📈 前日比", "データ不足")
@@ -555,16 +566,17 @@ class UIComponents:
     
     @staticmethod
     def render_analysis_metrics(metrics_data: Dict[str, Any]):
-        """分析メトリクスを表示（色分け修正版）"""
+        """分析メトリクスを表示（メトリクス色分け修正版）"""
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             total_return = metrics_data.get('total_return', 0)
+            # ✅ 修正3: 総リターン - 数値を直接渡して正しい色分け
             st.metric(
                 "総リターン",
                 f"{total_return:.2f}%",
-                delta=f"{total_return:+.2f}%",  # ✅ 変化量を表示
-                delta_color="normal"  # ✅ 正の値=緑、負の値=赤
+                delta=total_return,  # ✅ 数値で渡して正しい色分け
+                delta_color="normal"
             )
         
         with col2:
@@ -577,11 +589,12 @@ class UIComponents:
         
         with col3:
             max_drawdown = metrics_data.get('max_drawdown', 0)
+            # ✅ 修正4: ドローダウン - inverseカラーを使用（小さいほど良い）
             st.metric(
                 "最大ドローダウン",
                 f"{max_drawdown:.2f}%",
-                delta=f"{max_drawdown:.2f}%",  # ✅ 変化量を表示
-                delta_color="inverse"  # ✅ ドローダウンは逆転色（小さいほど良い）
+                delta=max_drawdown,  # ✅ 数値で渡す
+                delta_color="inverse"  # ✅ 小さいドローダウンを緑、大きいドローダウンを赤で表示
             )
         
         with col4:
@@ -589,8 +602,8 @@ class UIComponents:
             st.metric(
                 "シャープレシオ",
                 f"{sharpe_ratio:.2f}",
-                delta=f"{sharpe_ratio:+.2f}",  # ✅ 変化量を表示
-                delta_color="normal"  # ✅ 正の値=緑、負の値=赤
+                delta=sharpe_ratio,  # ✅ 数値で渡して正しい色分け
+                delta_color="normal"
             )
     
     @staticmethod 
