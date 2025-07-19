@@ -22,7 +22,7 @@ class TechnicalAnalyzer:
         
         Args:
             df: 株価データのDataFrame
-            **params: テクニカル指標のパラメータ
+            params: テクニカル指標のパラメータ
             
         Returns:
             pd.DataFrame: 指標が追加されたDataFrame

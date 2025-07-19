@@ -232,9 +232,9 @@ class SignalGenerator:
             if pd.notna(ma_short) and pd.notna(ma_long):
                 weight_info = f"(重み: {self.signal_weights['ma_trend']:.1f})"
                 if ma_short > ma_long:
-                    reasons.append(f"✅ **上昇トレンド** - 短期平均 > 長期平均 {weight_info}")
+                    reasons.append(f"✅ 上昇トレンド - 短期平均 > 長期平均 {weight_info}")
                 else:
-                    reasons.append(f"❌ **下降トレンド** - 短期平均 < 長期平均 {weight_info}")
+                    reasons.append(f"❌ 下降トレンド - 短期平均 < 長期平均 {weight_info}")
         
         # RSI
         if 'RSI' in df.columns:
@@ -242,11 +242,11 @@ class SignalGenerator:
             if pd.notna(rsi):
                 weight_info = f"(重み: {self.signal_weights['rsi']:.1f})"
                 if rsi < RSI_LEVELS['oversold']:
-                    reasons.append(f"✅ **RSI低水準** - RSI = {rsi:.1f}（反発の可能性を示唆）{weight_info}")
+                    reasons.append(f"✅ RSI低水準 - RSI = {rsi:.1f}（反発の可能性を示唆）{weight_info}")
                 elif rsi > RSI_LEVELS['overbought']:
-                    reasons.append(f"❌ **RSI高水準** - RSI = {rsi:.1f}（調整の可能性を示唆）{weight_info}")
+                    reasons.append(f"❌ RSI高水準 - RSI = {rsi:.1f}（調整の可能性を示唆）{weight_info}")
                 else:
-                    reasons.append(f"⚪ **RSI中程度** - RSI = {rsi:.1f}（中立）{weight_info}")
+                    reasons.append(f"⚪ RSI中程度 - RSI = {rsi:.1f}（中立）{weight_info}")
         
         # ボリンジャーバンド
         if all(col in df.columns for col in ['Close', 'BB_upper', 'BB_lower']):
@@ -257,9 +257,9 @@ class SignalGenerator:
             if all(pd.notna([close, bb_upper, bb_lower])):
                 weight_info = f"(重み: {self.signal_weights['bollinger']:.1f})"
                 if close < bb_lower:
-                    reasons.append(f"✅ **下側バンド突破** - ボリンジャーバンド下限を下回る {weight_info}")
+                    reasons.append(f"✅ 下側バンド突破 - ボリンジャーバンド下限を下回る {weight_info}")
                 elif close > bb_upper:
-                    reasons.append(f"❌ **上側バンド突破** - ボリンジャーバンド上限を上回る {weight_info}")
+                    reasons.append(f"❌ 上側バンド突破 - ボリンジャーバンド上限を上回る {weight_info}")
         
         # MACD
         if all(col in df.columns for col in ['MACD', 'MACD_signal']):
@@ -269,9 +269,9 @@ class SignalGenerator:
             if pd.notna(macd) and pd.notna(macd_signal):
                 weight_info = f"(重み: {self.signal_weights['macd']:.1f})"
                 if macd > macd_signal:
-                    reasons.append(f"✅ **MACD上向き** - 買い勢いを示唆 {weight_info}")
+                    reasons.append(f"✅ MACD上向き - 買い勢いを示唆 {weight_info}")
                 else:
-                    reasons.append(f"❌ **MACD下向き** - 売り勢いを示唆 {weight_info}")
+                    reasons.append(f"❌ MACD下向き - 売り勢いを示唆 {weight_info}")
         
         explanation['reasons'] = reasons
         
