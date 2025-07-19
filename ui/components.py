@@ -22,7 +22,7 @@ class UIComponents:
         st.markdown("""
         <div class="main-header">
             <h1>📱 株価分析学習アプリ</h1>
-            <p>🔰 教育・学習専用ツール | 🆕 JQuants API対応</p>
+            <p>🔰 教育・学習専用ツール</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -33,18 +33,18 @@ class UIComponents:
             st.markdown("""
             ### 📚 このアプリでできること
             
-            **株って何？**  
+            株って何？  
             株は「会社の一部を買うこと」です。例えば、トヨタの株を買うと、トヨタの会社の小さな持ち主になれます！
             
-            **このアプリの使い方**
-            1. 📈 **会社を選ぶ** → 気になる会社の株価を調べる
-            2. 🔍 **分析する** → その会社の株価の動きを学習する
-            3. 💡 **参考情報を見る** → 分析結果を参考情報として確認する
-            4. 💼 **ポートフォリオ** → 気になる会社をリストに保存できる
+            このアプリの使い方
+            1. 📈 会社を選ぶ → 気になる会社の株価を調べる
+            2. 🔍 分析する → その会社の株価の動きを学習する
+            3. 💡 参考情報を見る → 分析結果を参考情報として確認する
+            4. 💼 ポートフォリオ → 気になる会社をリストに保存できる
             
-            **🆕 JQuants API対応で更に便利に！**
-            - 🇯🇵 **日本株**: 全上場企業を会社名で検索可能
-            - 🌍 **海外株**: Alpha Vantage APIで世界中の株式検索
+            - 🆕 JQuants API対応で更に便利に！
+            - 🇯🇵 日本株: 全上場企業を会社名で検索可能
+            - 🌍 海外株: Alpha Vantage APIで世界中の株式検索
             """)
     
     @staticmethod
@@ -79,14 +79,18 @@ class UIComponents:
     @staticmethod
     def render_stock_search_section() -> tuple:
         """銘柄検索セクションを表示"""
-        UIComponents.render_explanation_box(
-            "📍 会社を選ぼう",
-            "どの会社の株価を分析したいか選択してください"
+        content = (
+        "どの会社の株価を分析したいか選択してください<br>"
+        "💡 例: 「トヨタ」「Apple」「任天堂」「Tesla」など<br><br>"
+        "🔍 会社名検索のときは以下を使います。ご自身で登録してください<br>"
+        "🇯🇵 日本株: 全上場企業をリアルタイム検索（JQuants API）<br>"
+        "🌍 世界株: グローバル株式検索（Alpha Vantage API）<br>"
         )
+        UIComponents.render_explanation_box("📍 会社を選ぼう", content)
         
         # 検索方法の選択
         search_method = st.radio(
-            "検索方法を選んでね",
+            "検索方法を選んでください",
             ["🔍 会社名で検索", "⌨️ コードを直接入力"],
             horizontal=True
         )
@@ -94,15 +98,7 @@ class UIComponents:
         return search_method
     
     @staticmethod
-    def render_company_search() -> tuple:
-        """会社名検索UIを表示（JQuants対応・API設定常時表示）"""
-        UIComponents.render_explanation_box(
-            "🔍 会社名検索（🆕JQuants対応）",
-            "🇯🇵 **日本株**: 全上場企業をリアルタイム検索（JQuants API）<br>" +
-            "🌍 **世界株**: グローバル株式検索（Alpha Vantage API）<br>" +
-            "💡 例：「トヨタ」「Apple」「任天堂」「Tesla」など"
-        )
-        
+    def render_company_search() -> tuple:       
         # API設定セクション（常時表示）
         api_settings = UIComponents._render_api_settings()
         
@@ -148,11 +144,11 @@ class UIComponents:
                 
                 # 認証成功メッセージを個別に表示
                 if file_jquants_config:
-                    st.info("🇯🇵 **JQuants認証成功**")
+                    st.info("🇯🇵 JQuants認証成功")
                     jquants_config = file_jquants_config
                 
                 if file_alpha_vantage_key:
-                    st.info("🌍 **Alpha Vantage認証成功**")
+                    st.info("🌍 Alpha Vantage認証成功")
                     alpha_vantage_key = file_alpha_vantage_key
                 
                 # 手動入力オプション
@@ -203,14 +199,14 @@ class UIComponents:
             
             # API Key取得ヘルプ（expanderの代わりにinfoを使用）
             st.info("""
-            **📚 API Key取得方法**
+            📚 API Key取得方法
             
-            **🇯🇵 JQuants API (日本株)**
+            🇯🇵 JQuants API (日本株)
             - サイト: https://jpx-jquants.com/
             - 無料プランあり
             - 日本の全上場企業を検索可能
             
-            **🌍 Alpha Vantage API (グローバル)**
+            🌍 Alpha Vantage API (グローバル)
             - サイト: https://www.alphavantage.co/support/#api-key
             - 無料プランあり（月500回まで）
             - 世界中の株式を検索可能
@@ -255,9 +251,9 @@ class UIComponents:
         
         UIComponents.render_tip_box(
             "💡 銘柄コードの例",
-            "🇯🇵 **日本株**: 7203.T（トヨタ）、6758.T（ソニー）、9984.T（ソフトバンク）<br>" +
-            "🇺🇸 **米国株**: AAPL（Apple）、GOOGL（Google）、TSLA（Tesla）、NVDA（NVIDIA）<br>" +
-            "💡 **ヒント**: .Tは東京証券取引所を意味します"
+            "🇯🇵 日本株: 7203.T（トヨタ）、6758.T（ソニー）、9984.T（ソフトバンク）<br>" +
+            "🇺🇸 米国株: AAPL（Apple）、GOOGL（Google）、TSLA（Tesla）、NVDA（NVIDIA）<br>" +
+            "💡 ヒント: .Tは東京証券取引所を意味します"
         )
         
         return stock_code
@@ -333,7 +329,7 @@ class UIComponents:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("**短期移動平均**")
+            st.markdown("短期移動平均")
             short_ma = st.slider(
                 "短期移動平均", 
                 TECHNICAL_RANGES['short_ma']['min'],
@@ -349,7 +345,7 @@ class UIComponents:
                 "📌使い方の例：短期線が長期線を上に抜けたら買いのサイン"
             )
             
-            st.markdown("**RSI（人気度指標）**")
+            st.markdown("RSI（人気度指標）")
             rsi_period = st.slider(
                 "RSI期間",
                 TECHNICAL_RANGES['rsi_period']['min'],
@@ -366,7 +362,7 @@ class UIComponents:
             )
 
         with col2:
-            st.markdown("**長期移動平均**")
+            st.markdown("長期移動平均")
             long_ma = st.slider(
                 "長期移動平均",
                 TECHNICAL_RANGES['long_ma']['min'],

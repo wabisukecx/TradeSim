@@ -60,11 +60,11 @@ class AnalysisUI:
     
     def _render_adaptive_analysis_results(self, adaptive_info: Dict[str, Any]):
         """動的重み付け分析結果を表示"""
-        st.markdown("### 🎯 相場パターン分析結果（NEW!）")
+        st.markdown("### 🎯 相場パターン分析結果")
         
         UIComponents.render_explanation_box(
-            "🤖 AI相場パターン検出",
-            "最新のAI技術により、現在の相場パターンを自動検出し、最適な分析手法を適用しました。<br>" +
+            "パターン検出",
+            "現在の相場パターンを自動検出し、最適な分析手法を適用しました。<br>" +
             "これにより、固定的な分析よりも高精度な投資判断支援が可能です。"
         )
         
@@ -146,7 +146,7 @@ class AnalysisUI:
             col1, col2 = st.columns(2)
             
             with col1:
-                st.markdown("**📈 重み配分**")
+                st.markdown("📈 重み配分")
                 
                 weight_display = []
                 indicator_names = {
@@ -165,18 +165,18 @@ class AnalysisUI:
                     bar_width = int(percentage / 2)  # 50% = 25文字
                     bar = "█" * bar_width + "░" * (25 - bar_width)
                     
-                    st.markdown(f"**{name}:** {percentage:.1f}%")
+                    st.markdown(f"{name}: {percentage:.1f}%")
                     st.markdown(f"`{bar}`")
             
             with col2:
-                st.markdown("**💡 重み付けの根拠**")
+                st.markdown("💡 重み付けの根拠")
                 
                 pattern_type = adaptive_info['detected_pattern']
                 pattern_profile = DYNAMIC_WEIGHT_PROFILES.get(pattern_type, {})
                 
                 if pattern_profile:
-                    st.markdown(f"**パターン:** {pattern_profile.get('name', pattern_type)}")
-                    st.markdown(f"**説明:** {pattern_profile.get('description', '')}")
+                    st.markdown(f"パターン: {pattern_profile.get('name', pattern_type)}")
+                    st.markdown(f"説明: {pattern_profile.get('description', '')}")
                     
                     # 重み付けの理由説明
                     weight_reasons = self._get_weight_reasoning(pattern_type, weights)
@@ -227,7 +227,7 @@ class AnalysisUI:
                     # トレンド分析
                     trend = analysis_details.get('trend', {})
                     if trend:
-                        st.markdown("**📈 トレンド分析**")
+                        st.markdown("📈 トレンド分析")
                         direction_icon = "⬆️" if trend.get('direction') == 'up' else "⬇️" if trend.get('direction') == 'down' else "➡️"
                         st.markdown(f"- 方向: {direction_icon} {trend.get('direction', 'N/A')}")
                         st.markdown(f"- 強度: {trend.get('strength', 'N/A')}")
@@ -236,7 +236,7 @@ class AnalysisUI:
                     # ボラティリティ分析
                     volatility = analysis_details.get('volatility', {})
                     if volatility:
-                        st.markdown("**📊 ボラティリティ分析**")
+                        st.markdown("📊 ボラティリティ分析")
                         state_icon = "📈" if volatility.get('state') == 'expanding' else "📉" if volatility.get('state') == 'contracting' else "➡️"
                         st.markdown(f"- 状態: {state_icon} {volatility.get('state', 'N/A')}")
                         st.markdown(f"- 信頼度: {volatility.get('confidence', 0):.1%}")
@@ -245,7 +245,7 @@ class AnalysisUI:
                     # モメンタム分析
                     momentum = analysis_details.get('momentum', {})
                     if momentum:
-                        st.markdown("**⚡ モメンタム分析**")
+                        st.markdown("⚡ モメンタム分析")
                         direction_icon = "🚀" if 'up' in momentum.get('direction', '') else "🔻" if 'down' in momentum.get('direction', '') else "⚪"
                         st.markdown(f"- 方向: {direction_icon} {momentum.get('direction', 'N/A')}")
                         st.markdown(f"- 強度: {momentum.get('strength', 0):.2f}")
@@ -254,7 +254,7 @@ class AnalysisUI:
                     # 出来高分析
                     volume = analysis_details.get('volume', {})
                     if volume:
-                        st.markdown("**📦 出来高分析**")
+                        st.markdown("📦 出来高分析")
                         trend_icon = "📈" if volume.get('trend') == 'increasing' else "📉"
                         confirm_icon = "✅" if volume.get('confirmation') else "❌"
                         st.markdown(f"- トレンド: {trend_icon} {volume.get('trend', 'N/A')}")
@@ -318,7 +318,7 @@ class AnalysisUI:
         
         UIComponents.render_explanation_box(
             "🤖 分析結果の見方",
-            f"**使用した分析手法:** {weight_mode_names.get(weight_mode, '固定重み付け')}<br>" +
+            "使用した分析手法: 固定重み付け <br>" +
             "コンピューターが色々な指標を見て、テクニカル分析を行いました。<br>" +
             "これは参考情報であり、投資助言ではありません。学習目的でご活用ください。"
         )
@@ -334,15 +334,15 @@ class AnalysisUI:
             pattern_info = signal_explanation['pattern_info']
             adaptive_context = f"""
             
-            **🎯 検出パターン:** {pattern_info['pattern_name']}  
-            **📊 信頼度:** {pattern_info['confidence'] * 100:.1f}%  
-            **💡 戦略ヒント:** {pattern_info['strategy_hint']}
+            🎯 検出パターン: {pattern_info['pattern_name']}  
+            📊 信頼度: {pattern_info['confidence'] * 100:.1f}%  
+            💡 戦略ヒント: {pattern_info['strategy_hint']}
             """
         
         if signal == 1:
             st.info(f"""
             ### 🟢 買いサインを検出
-            **スコア: {buy_score:.1f}点**
+            スコア: {buy_score:.1f}点
 
             複数の指標が「買いサイン」を示しています。{adaptive_context}
             
@@ -351,7 +351,7 @@ class AnalysisUI:
         elif signal == -1:
             st.info(f"""
             ### 🔴 売りサインを検出  
-            **スコア: {sell_score:.1f}点**
+            スコア: {sell_score:.1f}点
 
             複数の指標が「売りサイン」を示しています。{adaptive_context}
             
@@ -360,7 +360,7 @@ class AnalysisUI:
         else:
             st.info(f"""
             ### ⚪ 中立シグナル（様子見）
-            **買いスコア: {buy_score:.1f}点 | 売りスコア: {sell_score:.1f}点**
+            買いスコア: {buy_score:.1f}点 | 売りスコア: {sell_score:.1f}点
 
             現在は明確なサインが出ていない状況です。{adaptive_context}
             
@@ -374,7 +374,7 @@ class AnalysisUI:
         if signal_explanation.get('weights_breakdown'):
             UIComponents.render_explanation_box(
                 "⚖️ 使用された重み付け",
-                f"**分析手法:** {weight_mode_names.get(weight_mode)}<br>" +
+                f"分析手法: {weight_mode_names.get(weight_mode)} <br>" +
                 "各指標の重要度を調整して総合判断を行いました。"
             )
             
@@ -385,13 +385,29 @@ class AnalysisUI:
         
         UIComponents.render_explanation_box(
             "🔍 分析の根拠",
-            "以下の要素を総合的に分析しました：<br>" +
-            "1. 📈 移動平均：トレンドの方向性<br>" +
-            "2. 🌡️ RSI：相対的な強弱<br>" +
-            "3. 📊 ボリンジャーバンド：価格の相対的位置<br>" +
-            "4. ⚡ MACD：モメンタムの変化<br>" +
-            "5. 📦 出来高：取引の活発度"
-        )
+            "以下の要素を総合的に分析しました：<br><br>" +
+            "1. 📈 <strong>移動平均：</strong>株価のトレンド方向性<br>" +
+            "　→ 短期線が長期線より上なら上昇トレンド、下なら下降トレンド<br>" +
+            "　→ 現在の株価が平均より高いか低いかで勢いを判定<br><br>" +
+            
+            "2. 🌡️ <strong>RSI：</strong>買われすぎ・売られすぎの判定<br>" +
+            "　→ 70%以上で買われすぎ（売り検討）、30%以下で売られすぎ（買い検討）<br>" +
+            "　→ 株価の上昇・下降の勢いがどのくらい強いかを0-100%で表示<br><br>" +
+            
+            "3. 📊 <strong>ボリンジャーバンド：</strong>価格の正常範囲の判定<br>" +
+            "　→ 上限を超えると割高、下限を下回ると割安の可能性<br>" +
+            "　→ 過去の価格変動から「いつもの範囲」を計算して比較<br><br>" +
+            
+            "4. ⚡ <strong>MACD：</strong>買い・売りタイミングの変化<br>" +
+            "　→ MACDラインがシグナルラインを上抜けで買い、下抜けで売りサイン<br>" +
+            "　→ 株価の勢いが強くなっているか弱くなっているかを検出<br><br>" +
+            
+            "5. 📦 <strong>出来高：</strong>取引の勢いと信頼性<br>" +
+            "　→ 出来高が多いとトレンドの信頼性が高い、少ないと不安定<br>" +
+            "　→ たくさんの人が売買していると、その動きは本物の可能性が高い<br><br>" +
+            
+            "💡 <strong>総合判定：</strong>これら5つの指標が同じ方向を示すほど信頼性が高くなります"
+                )
         
         for reason in signal_explanation['reasons']:
             st.write(reason)
@@ -426,7 +442,7 @@ class AnalysisUI:
                 "🎮 シミュレーションって何？",
                 "「もし過去にこのルールで取引していたら、結果はどうなっていた？」を計算しました。<br>" +
                 "これは教育目的のシミュレーションであり、実際の投資成果ではありません。<br>" +
-                f"**分析手法:** {StateManager.get_weight_mode().upper()}モードを使用"
+                f"分析手法: {StateManager.get_weight_mode().upper()}モードを使用"
             )
             
             portfolio_df = analysis_data.get('portfolio')
@@ -493,9 +509,9 @@ class AnalysisUI:
                 if adaptive_info:
                     st.markdown("#### 🎯 動的重み付け分析補足")
                     st.info(f"""
-                    **検出パターン:** {adaptive_info['pattern_name']}  
-                    **信頼度:** {adaptive_info['confidence'] * 100:.1f}%  
-                    **リスクレベル:** {adaptive_info['risk_level']}
+                    検出パターン: {adaptive_info['pattern_name']}  
+                    信頼度: {adaptive_info['confidence'] * 100:.1f}%  
+                    リスクレベル: {adaptive_info['risk_level']}
                     
                     このパターンに最適化された重み付けで分析を行いました。
                     """)
@@ -503,10 +519,10 @@ class AnalysisUI:
                 # 結果の見方説明
                 UIComponents.render_tip_box(
                     "🤔 結果の見方",
-                    "💵 **仮想最終資産：** 最初の資金がいくらになったか<br>" +
-                    "📈 **総リターン：** 何%増えた（減った）か<br>" +
-                    "📉 **最大下落幅：** 一番調子が悪い時にどのくらい減ったか<br>" +
-                    "⚡ **シャープレシオ：** リスクを考慮した成績（1.0以上なら良好）"
+                    "💵 仮想最終資産： 最初の資金がいくらになったか<br>" +
+                    "📈 総リターン： 何%増えた（減った）か<br>" +
+                    "📉 最大下落幅： 一番調子が悪い時にどのくらい減ったか<br>" +
+                    "⚡ シャープレシオ： リスクを考慮した成績（1.0以上なら良好）"
                 )
                 
                 # 取引詳細情報
