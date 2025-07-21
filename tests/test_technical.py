@@ -139,7 +139,7 @@ class TestTechnicalAnalyzer:
             assert col in result.columns, f"ボリンジャーバンド{col}が計算されていない"
         
         # バンドの順序確認（上限 > 中央 > 下限）
-        bb_data = result[['BB_upper', 'BB_middle', 'BB_lower']].dropna()
+        bb_data = result[['BB_upper', 'BB_middle', 'BB_lower', 'Close']].dropna()
         if not bb_data.empty:
             assert (bb_data['BB_upper'] >= bb_data['BB_middle']).all(), "ボリンジャーバンド上限が中央より下にある"
             assert (bb_data['BB_middle'] >= bb_data['BB_lower']).all(), "ボリンジャーバンド中央が下限より下にある"
