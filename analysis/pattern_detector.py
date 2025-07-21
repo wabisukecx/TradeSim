@@ -8,7 +8,7 @@ import numpy as np
 from typing import Dict, Any
 from datetime import datetime
 
-# 動的重み付け設定（config/settings.pyが更新されるまでの暫定版）
+# 動的重み付け設定
 DYNAMIC_WEIGHT_PROFILES = {
     'uptrend': {
         'name': '上昇トレンド',
