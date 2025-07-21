@@ -9,3 +9,4 @@ requests
 pytest
 pytest-cov
 pytest-mock
+python-dotenv
