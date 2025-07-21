@@ -25,7 +25,7 @@ class AppController:
     
     def run_analysis(self, stock_code: str, params: Dict[str, Any]) -> bool:
         """
-        分析を実行（動的重み付け対応・バックテスト修正版）
+        分析を実行（動的重み付け対応・バックテスト）
         
         Args:
             stock_code: 銘柄コード
