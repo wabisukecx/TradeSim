@@ -1,4 +1,4 @@
-# data/validators.py - 修正版
+# data/validators.py
 """
 データ検証機能
 """

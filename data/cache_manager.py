@@ -1,4 +1,4 @@
-# data/cache_manager.py - 最終修正版
+# data/cache_manager.py - 最終版
 """
 キャッシュ管理機能
 """
