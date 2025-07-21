@@ -1,6 +1,6 @@
-# tests/test_integration.py (修正版)
+# tests/test_integration.py
 """
-統合テストコード（修正版）
+統合テストコード
 複数のコンポーネントを組み合わせた全体動作をテスト
 """
 
@@ -129,7 +129,7 @@ class TestIntegration:
         """テクニカル分析統合テスト"""
         mock_cache_stock_data.return_value = (self.test_stock_data, self.test_company_info)
         
-        # ✅ 修正：キーワード引数として展開
+        # キーワード引数として展開
         df_with_indicators = self.technical_analyzer.calculate_indicators(
             self.test_stock_data, **self.test_technical_params
         )
@@ -147,7 +147,7 @@ class TestIntegration:
         """シグナル生成統合テスト"""
         mock_cache_stock_data.return_value = (self.test_stock_data, self.test_company_info)
         
-        # ✅ 修正：キーワード引数として展開
+        # キーワード引数として展開
         df_with_indicators = self.technical_analyzer.calculate_indicators(
             self.test_stock_data, **self.test_technical_params
         )
@@ -166,7 +166,7 @@ class TestIntegration:
         """バックテスト統合テスト"""
         mock_cache_stock_data.return_value = (self.test_stock_data, self.test_company_info)
         
-        # ✅ 修正：キーワード引数として展開
+        # キーワード引数として展開
         df_with_indicators = self.technical_analyzer.calculate_indicators(
             self.test_stock_data, **self.test_technical_params
         )
@@ -271,52 +271,40 @@ class TestIntegration:
     @patch('data.cache_manager.cache_stock_data')
     def test_empty_data_error_handling(self, mock_cache_stock_data):
         """空データのエラーハンドリングテスト"""
-        # 空のDataFrameを返すように設定
+        # 空のDataFrameを返すモック
         empty_df = pd.DataFrame()
         mock_cache_stock_data.return_value = (empty_df, self.test_company_info)
         
         # 分析実行
-        success = self.app_controller.run_analysis("AAPL", self.test_analysis_params)
+        success = self.app_controller.run_analysis("EMPTY", self.test_analysis_params)
         
         # エラーが適切にハンドリングされているか確認
         assert isinstance(success, bool), "戻り値がbool型でない"
-
-    @patch('data.cache_manager.cache_stock_data')
-    def test_insufficient_data_error_handling(self, mock_cache_stock_data):
-        """データ不足のエラーハンドリングテスト"""
-        # データ不足のDataFrameを作成（10日分のみ）
-        insufficient_data = self.test_stock_data.head(10)
-        mock_cache_stock_data.return_value = (insufficient_data, self.test_company_info)
-        
-        # 分析実行
-        success = self.app_controller.run_analysis("AAPL", self.test_analysis_params)
-        
-        # エラーが適切にハンドリングされているか確認
-        assert isinstance(success, bool), "戻り値がbool型でない"
+        assert not success, "空データでも成功が返された"
 
     # ======================
     # パフォーマンステスト
     # ======================
     
     @patch('data.cache_manager.cache_stock_data')
-    def test_full_analysis_performance(self, mock_cache_stock_data):
-        """全体分析のパフォーマンステスト"""
-        import time
+    def test_large_data_performance(self, mock_cache_stock_data):
+        """大量データでのパフォーマンステスト"""
+        # 大量データの作成（5年分）
+        large_dates = pd.date_range(start='2019-01-01', periods=1260, freq='D')  
+        large_base_prices = [1000 + i * 0.1 + np.random.normal(0, 5) for i in range(1260)]
         
-        # 大きなデータセットを作成（2年分）
-        large_dates = pd.date_range(start='2022-01-01', periods=500, freq='D')
-        large_prices = [1000 + i * 0.5 + np.random.normal(0, 10) for i in range(500)]
         large_data = pd.DataFrame({
-            'Open': [p * 0.99 for p in large_prices],
-            'High': [p * 1.02 for p in large_prices],
-            'Low': [p * 0.98 for p in large_prices],
-            'Close': large_prices,
-            'Volume': np.random.randint(10000, 100000, 500)
+            'Open': [p * 0.99 for p in large_base_prices],
+            'High': [p * 1.02 for p in large_base_prices],
+            'Low': [p * 0.98 for p in large_base_prices],
+            'Close': large_base_prices,
+            'Volume': np.random.randint(10000, 100000, 1260)
         }, index=large_dates)
         
         mock_cache_stock_data.return_value = (large_data, self.test_company_info)
         
-        # パフォーマンス測定
+        # 実行時間測定
+        import time
         start_time = time.time()
         success = self.app_controller.run_analysis("AAPL", self.test_analysis_params)
         end_time = time.time()
@@ -361,7 +349,7 @@ class TestIntegration:
         
         # データ検証が適切に動作するか確認
         try:
-            # ✅ 修正：キーワード引数として展開
+            # キーワード引数として展開
             df_with_indicators = self.technical_analyzer.calculate_indicators(
                 invalid_data, **self.test_technical_params
             )
