@@ -137,7 +137,7 @@ class TestIntegration:
         # 結果の検証
         assert not df_with_indicators.empty, "テクニカル指標計算結果が空"
         
-        # 主要指標の存在確認（実際の出力列名に合わせて修正）
+        # 主要指標の存在確認（実際の出力列名に合わせる）
         expected_columns = ['MA_short', 'MA_long', 'RSI', 'BB_upper', 'BB_lower']
         for col in expected_columns:
             assert col in df_with_indicators.columns, f"{col}が計算されていない"

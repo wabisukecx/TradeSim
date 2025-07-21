@@ -1,5 +1,5 @@
 """
-pytest 共通設定・フィクスチャ（修正版）
+pytest 共通設定・フィクスチャ
 """
 
 import sys

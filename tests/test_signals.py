@@ -1,6 +1,6 @@
-# tests/test_signals.py (修正版)
+# tests/test_signals.py
 """
-シグナル生成機能のテストコード（修正版）
+シグナル生成機能のテストコード
 analysis/signals.py の SignalGenerator クラスをテスト
 """
 
@@ -137,7 +137,7 @@ class TestSignalGenerator:
         assert signals['signal'].dtype in [np.int64, np.float64]
 
     def test_generate_signals_uptrend_detection(self):
-        """上昇トレンドでの買いシグナル検出テスト（修正版）"""
+        """上昇トレンドでの買いシグナル検出テスト"""
         df_with_indicators = self.prepare_data_with_indicators(self.uptrend_data)
         signals = self.signal_generator.generate_signals_advanced(df_with_indicators)
         
@@ -288,7 +288,7 @@ class TestSignalGenerator:
         assert signals['sell_score'].sum() >= 0, "出来高シグナルの売りスコアが負の値"
 
     # ======================
-    # 動的重み付けテスト（修正版）
+    # 動的重み付けテスト
     # ======================
     
     @patch('analysis.pattern_detector.MarketPatternDetector')  # 正しいパス
